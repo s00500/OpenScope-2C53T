@@ -127,6 +127,63 @@ static void wave_defaults(void)
     wave_calls = 0;
 }
 
+/* ─── M6 control surface fakes ─── */
+static int state_calls;
+static uint8_t state_dropped_seen;
+static bool state_put_unknown;          /* provider tries a key the table lacks */
+static void state_provider(esp_state_writer_t *w)
+{
+    state_calls++;
+    esp_state_put_int(w, ESP_KEY_MODE, 2);
+    esp_state_put_int(w, ESP_KEY_TRIG_LEVEL, -37);
+    esp_state_put_int(w, ESP_KEY_SAMPLE_RATE, 12490);
+    esp_state_put_int(w, ESP_KEY_COUNTS_PER_DIV, 32);
+    esp_state_put_f32(w, ESP_KEY_SG_FREQ, 1234.5f);
+    esp_state_put_int(w, (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV), 7);
+    if (state_put_unknown)
+        esp_state_put_int(w, 0xEE, 5);
+    state_dropped_seen = w->dropped;
+}
+
+static int mode_calls;
+static uint8_t mode_seen;
+static esp_apply_result_t mode_result;
+static esp_apply_result_t mode_setter(uint8_t m) { mode_calls++; mode_seen = m; return mode_result; }
+
+static int param_calls;
+static uint8_t param_key_seen;
+static esp_value_t param_seen;
+static esp_apply_result_t param_result;
+static esp_apply_result_t param_setter(uint8_t k, const esp_value_t *v)
+{
+    param_calls++; param_key_seen = k; param_seen = *v; return param_result;
+}
+
+static int action_calls;
+static uint8_t action_seen, action_arg_seen;
+static esp_apply_result_t action_result;
+static esp_apply_result_t action_handler(uint8_t a, uint8_t arg)
+{
+    action_calls++; action_seen = a; action_arg_seen = arg; return action_result;
+}
+
+static void m6_defaults(void)
+{
+    state_calls = 0; state_dropped_seen = 0; state_put_unknown = false;
+    mode_calls = 0; mode_seen = 0xFF; mode_result = ESP_APPLY_OK;
+    param_calls = 0; param_key_seen = 0; memset(&param_seen, 0, sizeof(param_seen));
+    param_result = ESP_APPLY_OK;
+    action_calls = 0; action_seen = 0; action_arg_seen = 0; action_result = ESP_APPLY_OK;
+}
+
+static void m6_bind(void)
+{
+    esp_comm_set_state_provider(state_provider);
+    esp_comm_set_mode_setter(mode_setter);
+    esp_comm_set_param_setter(param_setter);
+    esp_comm_set_action_handler(action_handler);
+}
+
 static void reset(void)
 {
     esp_comm_init();
@@ -136,6 +193,11 @@ static void reset(void)
     esp_comm_set_button_injector(0);
     esp_comm_set_meter_provider(0);
     esp_comm_set_waveform_provider(0);
+    esp_comm_set_state_provider(0);
+    esp_comm_set_mode_setter(0);
+    esp_comm_set_param_setter(0);
+    esp_comm_set_action_handler(0);
+    m6_defaults();
     wave_defaults();
     meter_ready = false;
     meter_wrong_mode = false;
@@ -692,6 +754,292 @@ static void test_waveform_byte_writer_agrees(void)
     CHECK(tx_bytes_len == a && memcmp(tx_bytes, copy, a) == 0, "byte writer emits the identical two-part frames");
 }
 
+/* ─── M6: control surface (remote_protocol.md §10) ─── */
+
+/* Find key k in a STATE payload; returns its value bytes or NULL. */
+static const uint8_t *tlv_find(const uint8_t *p, uint16_t n, uint8_t k, uint8_t *len)
+{
+    uint16_t i = 1;                       /* [0] = state_version */
+    while (i + 2u <= n) {
+        uint8_t key = p[i], l = p[i + 1];
+        if (i + 2u + l > n) return NULL;  /* malformed */
+        if (key == k) { if (len) *len = l; return p + i + 2; }
+        i = (uint16_t)(i + 2u + l);
+    }
+    return NULL;
+}
+
+/* Every entry well-formed and sized by its key's type: a host may rely on it. */
+static bool tlv_well_formed(const uint8_t *p, uint16_t n)
+{
+    uint16_t i = 1;
+    while (i < n) {
+        uint8_t type; bool rw;
+        if (i + 2u > n) return false;
+        if (!esp_comm_key_info(p[i], &type, &rw)) return false;
+        if (p[i + 1] != esp_comm_vtype_size(type)) return false;
+        i = (uint16_t)(i + 2u + p[i + 1]);
+    }
+    return i == n;
+}
+
+static void test_get_state_tlv(void)
+{
+    uint8_t buf[16], p[512]; uint16_t pl = 0; size_t off = 0; uint8_t l = 0;
+    const uint8_t *v;
+    reset(); m6_bind();
+    route(buf, frame(buf, ESP_CMD_GET_STATE, 0, 0), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_STATE, "GET_STATE answered with STATE");
+    CHECK(pl >= 1 && p[0] == ESP_STATE_VERSION, "byte 0 = state version");
+    CHECK(tlv_well_formed(p, pl), "every entry is [key][len = type size][value]");
+    v = tlv_find(p, pl, ESP_KEY_MODE, &l);
+    CHECK(v && l == 1 && v[0] == 2, "u8 key encoded in one byte");
+    v = tlv_find(p, pl, ESP_KEY_TRIG_LEVEL, &l);
+    CHECK(v && l == 2 && (int16_t)(v[0] | (v[1] << 8)) == -37, "i16 key: negative value, little-endian");
+    v = tlv_find(p, pl, ESP_KEY_SAMPLE_RATE, &l);
+    CHECK(v && l == 4 && (v[0] | (v[1] << 8) | (v[2] << 16) | ((uint32_t)v[3] << 24)) == 12490u,
+          "u32 key: four bytes little-endian");
+    v = tlv_find(p, pl, ESP_KEY_SG_FREQ, &l);
+    {
+        float f = 0; uint32_t bits = 0;
+        if (v && l == 4) { bits = v[0] | (v[1] << 8) | (v[2] << 16) | ((uint32_t)v[3] << 24); memcpy(&f, &bits, 4); }
+        CHECK(v && l == 4 && f == 1234.5f, "f32 key: IEEE-754 little-endian");
+    }
+    v = tlv_find(p, pl, (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV), &l);
+    CHECK(v && l == 1 && v[0] == 7, "CH2 keys sit at CH_BASE(1)");
+    CHECK(state_dropped_seen == 0, "nothing dropped for known keys with room");
+    CHECK(off == tx_len, "exactly one frame");
+}
+
+static void test_state_unknown_key_never_on_wire(void)
+{
+    uint8_t buf[16], p[512]; uint16_t pl = 0; size_t off = 0;
+    reset(); m6_bind();
+    state_put_unknown = true;
+    route(buf, frame(buf, ESP_CMD_GET_STATE, 0, 0), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_STATE, "STATE still answered");
+    CHECK(tlv_find(p, pl, 0xEE, 0) == NULL, "a key outside the table is not put on the wire");
+    CHECK(tlv_well_formed(p, pl), "and the rest stays well-formed");
+    CHECK(state_dropped_seen == 1, "the drop is counted");
+}
+
+static void test_state_writer_respects_capacity(void)
+{
+    struct { uint8_t buf[8]; uint8_t canary[8]; } mem;
+    esp_state_writer_t w = { mem.buf, sizeof(mem.buf), 0, 0 };
+    memset(&mem, 0x5A, sizeof(mem));
+    esp_state_put_int(&w, ESP_KEY_SAMPLE_RATE, 1);      /* 6 B: fits */
+    esp_state_put_int(&w, ESP_KEY_SAMPLE_RATE, 2);      /* 6 more: does not */
+    esp_state_put_int(&w, ESP_KEY_MODE, 1);             /* 3 more: does not (6 + 3 > 8) */
+    CHECK(w.len == 6, "only whole entries that fit are written");
+    CHECK(w.dropped == 2, "entries that do not fit are counted, not truncated");
+    {
+        bool intact = true;
+        for (int i = 0; i < 8; i++) if (mem.canary[i] != 0x5A) intact = false;
+        CHECK(intact, "nothing written past the buffer");
+    }
+}
+
+static void test_get_state_args(void)
+{
+    uint8_t buf[16], p[64]; uint16_t pl = 0; size_t off = 0; uint8_t one = 0;
+    reset(); m6_bind();
+    route(buf, frame(buf, ESP_CMD_GET_STATE, &one, 1), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_LENGTH, "GET_STATE with a payload: BAD_LENGTH");
+    reset();
+    off = 0;
+    route(buf, frame(buf, ESP_CMD_GET_STATE, 0, 0), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_UNSUPPORTED, "no state provider: UNSUPPORTED");
+}
+
+static void test_set_mode(void)
+{
+    uint8_t buf[16], p[512]; uint16_t pl = 0; size_t off = 0; uint8_t m;
+    reset(); m6_bind();
+    m = 2;
+    route(buf, frame(buf, ESP_CMD_SET_MODE, &m, 1), 0);
+    CHECK(mode_calls == 1 && mode_seen == 2, "mode setter called with the mode");
+    CHECK(take(&off, p, &pl) == ESP_RSP_STATE && state_calls == 1, "a switch that took is answered with STATE");
+
+    reset(); m6_bind(); off = 0;
+    m = 4;
+    route(buf, frame(buf, ESP_CMD_SET_MODE, &m, 1), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_ARG, "mode 4: BAD_ARG");
+    CHECK(mode_calls == 0, "and the setter never ran");
+
+    reset(); m6_bind(); off = 0;
+    route(buf, frame(buf, ESP_CMD_SET_MODE, 0, 0), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_LENGTH, "SET_MODE without a mode: BAD_LENGTH");
+
+    reset(); m6_bind(); off = 0;
+    mode_result = ESP_APPLY_BUSY;
+    m = 1;
+    route(buf, frame(buf, ESP_CMD_SET_MODE, &m, 1), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_NOT_READY, "a switch that did not take: NAK NOT_READY");
+    CHECK(state_calls == 0 && off == tx_len, "and no STATE follows the NAK");
+
+    reset(); off = 0;
+    m = 1;
+    route(buf, frame(buf, ESP_CMD_SET_MODE, &m, 1), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_UNSUPPORTED, "no mode setter: UNSUPPORTED");
+}
+
+static void test_set_param_decoding(void)
+{
+    uint8_t buf[32], p[512], q[8]; uint16_t pl = 0; size_t off = 0;
+    float f = 1234.5f; uint32_t bits;
+
+    reset(); m6_bind();
+    q[0] = ESP_KEY_THEME; q[1] = 3;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 2), 0);
+    CHECK(param_calls == 1 && param_key_seen == ESP_KEY_THEME && param_seen.i == 3, "u8 value decoded");
+    CHECK(take(&off, p, &pl) == ESP_RSP_STATE, "a write that took is answered with STATE");
+
+    reset(); m6_bind(); off = 0;
+    q[0] = ESP_KEY_TRIG_LEVEL; q[1] = (uint8_t)(-37 & 0xFF); q[2] = (uint8_t)((-37 >> 8) & 0xFF);
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 3), 0);
+    CHECK(param_calls == 1 && param_seen.i == -37, "i16 value sign-extended");
+
+    reset(); m6_bind(); off = 0;
+    memcpy(&bits, &f, 4);
+    q[0] = ESP_KEY_SG_FREQ; q[1] = (uint8_t)bits; q[2] = (uint8_t)(bits >> 8);
+    q[3] = (uint8_t)(bits >> 16); q[4] = (uint8_t)(bits >> 24);
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
+    CHECK(param_calls == 1 && param_seen.f == 1234.5f, "f32 value decoded");
+
+    reset(); m6_bind(); off = 0;
+    q[0] = (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV); q[1] = 9;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 2), 0);
+    CHECK(param_calls == 1 && param_key_seen == ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV, "CH2 key passed through");
+}
+
+static void test_set_param_rejections(void)
+{
+    uint8_t buf[32], p[64], q[8]; uint16_t pl = 0; size_t off = 0;
+    const uint32_t nan_bits = 0x7FC00000u, inf_bits = 0x7F800000u;
+
+    reset(); m6_bind();
+    q[0] = 0xEE; q[1] = 1;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 2), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_UNKNOWN_KEY, "unknown key: UNKNOWN_KEY");
+
+    off = 0; tx_len = 0;
+    q[0] = ESP_KEY_MODE; q[1] = 1;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 2), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_READ_ONLY, "mode via SET_PARAM: READ_ONLY");
+
+    off = 0; tx_len = 0;
+    q[0] = ESP_KEY_SAMPLE_RATE; q[1] = 1; q[2] = 0; q[3] = 0; q[4] = 0;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_READ_ONLY, "a measured rate is not writable");
+
+    off = 0; tx_len = 0;
+    q[0] = (uint8_t)(ESP_KEY_CH_BASE(0) + ESP_KEY_CH_UV_PER_DIV); q[1] = 1; q[2] = 0; q[3] = 0; q[4] = 0;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_READ_ONLY, "a measured gain is not writable");
+
+    off = 0; tx_len = 0;
+    q[0] = ESP_KEY_THEME; q[1] = 1; q[2] = 0;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 3), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_LENGTH, "u8 key with two value bytes: BAD_LENGTH");
+
+    off = 0; tx_len = 0;
+    q[0] = ESP_KEY_SG_FREQ; q[1] = 1;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 2), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_LENGTH, "f32 key with one value byte: BAD_LENGTH");
+
+    off = 0; tx_len = 0;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, 0, 0), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_LENGTH, "empty SET_PARAM: BAD_LENGTH");
+
+    off = 0; tx_len = 0;
+    q[0] = ESP_KEY_SG_FREQ; memcpy(q + 1, &nan_bits, 4);
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_ARG, "NaN: BAD_ARG");
+
+    off = 0; tx_len = 0;
+    q[0] = ESP_KEY_SG_AMP; memcpy(q + 1, &inf_bits, 4);
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_ARG, "inf: BAD_ARG");
+
+    CHECK(param_calls == 0, "no rejected write ever reached the setter");
+    CHECK(state_calls == 0, "and no rejection was followed by a STATE");
+}
+
+static void test_set_param_failures_map_to_naks(void)
+{
+    static const struct { esp_apply_result_t r; uint8_t nak; } map[] = {
+        { ESP_APPLY_BAD_ARG,     ESP_ERR_BAD_ARG },
+        { ESP_APPLY_WRONG_MODE,  ESP_ERR_UNSUPPORTED_IN_MODE },
+        { ESP_APPLY_HW_REFUSED,  ESP_ERR_HW_REFUSED },
+        { ESP_APPLY_BUSY,        ESP_ERR_NOT_READY },
+        { ESP_APPLY_UNSUPPORTED, ESP_ERR_UNSUPPORTED },
+        { ESP_APPLY_UNKNOWN,     ESP_ERR_UNKNOWN_KEY },
+        { ESP_APPLY_TIMED_OUT,   ESP_ERR_OUTCOME_UNKNOWN },
+    };
+    for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+        uint8_t buf[32], p[64], q[2] = { ESP_KEY_THEME, 1 }; uint16_t pl = 0; size_t off = 0;
+        char msg[96];
+        reset(); m6_bind();
+        param_result = map[i].r;
+        route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 2), 0);
+        snprintf(msg, sizeof(msg), "apply result %d answered with NAK 0x%02X", (int)map[i].r, map[i].nak);
+        CHECK(take(&off, p, &pl) == ESP_RSP_NAK && pl == 1 && p[0] == map[i].nak, msg);
+        CHECK(state_calls == 0 && off == tx_len, "a failed write is never followed by STATE");
+    }
+}
+
+static void test_action(void)
+{
+    uint8_t buf[16], p[64], q[2]; uint16_t pl = 0; size_t off = 0;
+    reset(); m6_bind();
+    q[0] = ESP_ACT_SETTINGS_SAVE; q[1] = 0;
+    route(buf, frame(buf, ESP_CMD_ACTION, q, 2), 0);
+    CHECK(action_calls == 1 && action_seen == ESP_ACT_SETTINGS_SAVE, "action handler called");
+    CHECK(take(&off, p, &pl) == ESP_RSP_ACK, "an action that ran is ACKed");
+
+    reset(); m6_bind(); off = 0;
+    q[0] = 0x7E; q[1] = 0;
+    route(buf, frame(buf, ESP_CMD_ACTION, q, 2), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_UNKNOWN_KEY, "unknown action: UNKNOWN_KEY");
+    CHECK(action_calls == 0, "and the handler never saw it");
+
+    reset(); m6_bind(); off = 0;
+    q[0] = ESP_ACT_METER_RESET;
+    route(buf, frame(buf, ESP_CMD_ACTION, q, 1), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_BAD_LENGTH, "action without arg byte: BAD_LENGTH");
+
+    reset(); m6_bind(); off = 0;
+    action_result = ESP_APPLY_WRONG_MODE;
+    q[0] = ESP_ACT_METER_RESET; q[1] = 0;
+    route(buf, frame(buf, ESP_CMD_ACTION, q, 2), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_UNSUPPORTED_IN_MODE, "action refused: NAK, not ACK");
+}
+
+static void test_key_table_contract(void)
+{
+    uint8_t type = 0; bool rw = true;
+    static const uint8_t ro[] = {
+        ESP_KEY_MODE, ESP_KEY_TIMEBASE_HW, ESP_KEY_SAMPLE_RATE, ESP_KEY_RATE_TIER,
+        ESP_KEY_COUNTS_PER_DIV, ESP_KEY_TRIG_CODE, ESP_KEY_FRAME_GEN,
+    };
+    for (size_t i = 0; i < sizeof(ro); i++) {
+        CHECK(esp_comm_key_info(ro[i], &type, &rw) && !rw, "measured / derived keys are read-only");
+    }
+    for (uint8_t c = 0; c < 2; c++) {
+        const uint8_t b = ESP_KEY_CH_BASE(c);
+        CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_VDIV), &type, &rw) && rw && type == ESP_VT_U8, "chN.vdiv u8 RW");
+        CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_UV_PER_DIV), &type, &rw) && !rw && type == ESP_VT_U32, "chN.uv_per_div u32 RO");
+        CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_VDIV_TIER), &type, &rw) && !rw, "chN.vdiv_tier RO");
+    }
+    CHECK(esp_comm_key_info(ESP_KEY_TRIG_LEVEL, &type, &rw) && rw && type == ESP_VT_I16, "trig.level i16 RW");
+    CHECK(esp_comm_key_info(ESP_KEY_SG_FREQ, &type, &rw) && rw && type == ESP_VT_F32, "sg.freq f32 RW");
+    CHECK(!esp_comm_key_info(0x00, 0, 0) && !esp_comm_key_info(0xFF, 0, 0), "0x00 and 0xFF are not keys");
+    CHECK(esp_comm_vtype_size(ESP_VT_U8) == 1 && esp_comm_vtype_size(ESP_VT_I16) == 2 &&
+          esp_comm_vtype_size(ESP_VT_U16) == 2 && esp_comm_vtype_size(ESP_VT_U32) == 4 &&
+          esp_comm_vtype_size(ESP_VT_F32) == 4 && esp_comm_vtype_size(0) == 0, "type sizes");
+}
+
 int main(void)
 {
     printf("test_remote_proto\n");
@@ -721,6 +1069,16 @@ int main(void)
     test_waveform_all_or_nothing();
     test_waveform_flags_are_derived();
     test_waveform_byte_writer_agrees();
+    test_get_state_tlv();
+    test_state_unknown_key_never_on_wire();
+    test_state_writer_respects_capacity();
+    test_get_state_args();
+    test_set_mode();
+    test_set_param_decoding();
+    test_set_param_rejections();
+    test_set_param_failures_map_to_naks();
+    test_action();
+    test_key_table_contract();
     printf("%d/%d checks passed\n", checks - failures, checks);
     return failures ? 1 : 0;
 }

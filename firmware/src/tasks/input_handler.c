@@ -96,6 +96,95 @@ static void osc_settings_adjust(int dir)
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+ * Shared state changes (buttons and remote_ops.c use the same code)
+ * ═══════════════════════════════════════════════════════════════════ */
+
+void input_set_persist(bool on)
+{
+    if (on == persist_enabled)
+        return;
+    persist_enabled = on;
+    if (persist_enabled) {
+        /* Persistence needs the pool — evicts FFT if active */
+        if (fft_is_initialized())
+            fft_deinit();
+        persist_init();
+        persist_set_mode(PERSIST_MEDIUM);
+    } else {
+        persist_deinit();
+    }
+}
+
+/* Mode entry: the FPGA commands and analog MUX config each mode needs. */
+static void enter_mode(device_mode_t m)
+{
+    current_mode = m;
+    if (current_mode == MODE_SETTINGS) {
+        settings_selected = 0;
+        settings_depth = 0;
+    }
+    if (current_mode == MODE_MULTIMETER) {
+        fpga_request_meter_mode(meter_submode);   /* background: no frozen buttons */
+    } else if (current_mode == MODE_SIGNAL_GEN) {
+        fpga_enter_siggen_mode();
+    } else if (current_mode == MODE_OSCILLOSCOPE) {
+        fpga_enter_scope_mode();
+    } else {
+        GPIOC->clr = (1U << 11);  /* PC11 LOW — meter disable */
+    }
+}
+
+void input_enter_mode(device_mode_t m)
+{
+    meter_autoselect_cancel();
+    if (m != current_mode)
+        enter_mode(m);
+    else if (m == MODE_SETTINGS) {
+        settings_depth = 0;           /* back to the top of the menu, like MENU */
+        settings_sub_selected = 0;
+    }
+    /* A mode change is a deliberate boundary, as on MENU. */
+    (void)settings_store_flush(settings_now_ms());
+}
+
+void input_settings_tick(void)
+{
+    uint32_t now = settings_now_ms();
+    settings_store_note_change(now);
+    (void)settings_store_service(now);
+}
+
+#ifdef FEATURE_FFT
+void input_set_scope_view(scope_view_t v)
+{
+    scope_view_t prev_view = scope_view;
+    if (v >= SCOPE_VIEW_COUNT)
+        return;
+    scope_view = v;
+
+    /* Pool lifecycle: claim FFT pool when entering FFT views,
+     * release when returning to time-domain */
+    if (prev_view == SCOPE_VIEW_TIME && scope_view != SCOPE_VIEW_TIME) {
+        /* Entering FFT view — claim pool */
+        fft_config_t fft_cfg;
+        fft_cfg.window         = FFT_WINDOW_HANNING;
+        fft_cfg.sample_rate_hz = 44100.0f;
+        fft_cfg.ref_level_db   = 0.0f;
+        fft_cfg.db_range       = 80.0f;
+        fft_cfg.peak_count     = 4;
+        fft_cfg.avg_count      = 0;
+        fft_cfg.max_hold       = false;
+        fft_cfg.zoom_start_bin = 1;
+        fft_cfg.zoom_end_bin   = FFT_BINS - 1;
+        fft_init(&fft_cfg);
+    } else if (prev_view != SCOPE_VIEW_TIME && scope_view == SCOPE_VIEW_TIME) {
+        /* Returning to time-domain — release pool */
+        fft_deinit();
+    }
+}
+#endif
+
+/* ═══════════════════════════════════════════════════════════════════
  * Settings OK handler
  * ═══════════════════════════════════════════════════════════════════ */
 
@@ -183,16 +272,7 @@ void input_handle_settings_ok(void)
             }
         } else if (settings_sub_selected == 1) {
             /* Persistence: toggle on/off with pool lifecycle */
-            persist_enabled = !persist_enabled;
-            if (persist_enabled) {
-                /* Persistence needs the pool — evicts FFT if active */
-                if (fft_is_initialized())
-                    fft_deinit();
-                persist_init();
-                persist_set_mode(PERSIST_MEDIUM);
-            } else {
-                persist_deinit();
-            }
+            input_set_persist(!persist_enabled);
         } else if (settings_sub_selected == 2) {
             /* Back */
             settings_depth = 0;
@@ -238,12 +318,21 @@ static void popup_and_redraw(QueueHandle_t q, const char *text)
  * bar can no longer say "AC" over a DC-coupled input -- which they did, on
  * every build, until 2026-10-03. GND is out of the cycle: no hardware ground
  * path is known, and a GND label over a live input would be the same lie. */
+bool input_apply_coupling(uint8_t ch, coupling_t next)
+{
+    scope_state_t *ss = scope_state_get();
+    channel_state_t *c = ch ? &ss->ch2 : &ss->ch1;
+    if (!fpga_apply_coupling(ch, (uint8_t)next))
+        return false;
+    c->coupling = next;
+    return true;
+}
+
 static void channel_cycle_coupling(uint8_t ch, channel_state_t *c, const char *name,
                                    char *pb, size_t n)
 {
     coupling_t next = (c->coupling == COUPLING_DC) ? COUPLING_AC : COUPLING_DC;
-    if (fpga_apply_coupling(ch, (uint8_t)next)) {
-        c->coupling = next;
+    if (input_apply_coupling(ch, next)) {
         snprintf(pb, n, "%s %s", name, coupling_labels[next]);
     } else {
         snprintf(pb, n, "%s %s NOT SET", name, coupling_labels[next]);
@@ -382,22 +471,7 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
             settings_depth = 0;
             settings_sub_selected = 0;
         } else {
-            current_mode = (device_mode_t)((current_mode + 1) % MODE_COUNT);
-            if (current_mode == MODE_SETTINGS) {
-                settings_selected = 0;
-                settings_depth = 0;
-            }
-            /* Tell the FPGA which mode we're entering.
-             * Each mode needs different FPGA commands and analog MUX config. */
-            if (current_mode == MODE_MULTIMETER) {
-                fpga_request_meter_mode(meter_submode);   /* background: no frozen buttons */
-            } else if (current_mode == MODE_SIGNAL_GEN) {
-                fpga_enter_siggen_mode();
-            } else if (current_mode == MODE_OSCILLOSCOPE) {
-                fpga_enter_scope_mode();
-            } else {
-                GPIOC->clr = (1U << 11);  /* PC11 LOW — meter disable */
-            }
+            enter_mode((device_mode_t)((current_mode + 1) % MODE_COUNT));
         }
         /* Leaving a mode, or backing out of the settings menu, is a deliberate
          * boundary: commit now rather than waiting out the settle window. */
@@ -598,28 +672,7 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
 #ifdef FEATURE_FFT
     case BTN_PRM:
         if (current_mode == MODE_OSCILLOSCOPE) {
-            scope_view_t prev_view = scope_view;
-            scope_view = (scope_view_t)((scope_view + 1) % SCOPE_VIEW_COUNT);
-
-            /* Pool lifecycle: claim FFT pool when entering FFT views,
-             * release when returning to time-domain */
-            if (prev_view == SCOPE_VIEW_TIME && scope_view != SCOPE_VIEW_TIME) {
-                /* Entering FFT view — claim pool */
-                fft_config_t fft_cfg;
-                fft_cfg.window         = FFT_WINDOW_HANNING;
-                fft_cfg.sample_rate_hz = 44100.0f;
-                fft_cfg.ref_level_db   = 0.0f;
-                fft_cfg.db_range       = 80.0f;
-                fft_cfg.peak_count     = 4;
-                fft_cfg.avg_count      = 0;
-                fft_cfg.max_hold       = false;
-                fft_cfg.zoom_start_bin = 1;
-                fft_cfg.zoom_end_bin   = FFT_BINS - 1;
-                fft_init(&fft_cfg);
-            } else if (prev_view != SCOPE_VIEW_TIME && scope_view == SCOPE_VIEW_TIME) {
-                /* Returning to time-domain — release pool */
-                fft_deinit();
-            }
+            input_set_scope_view((scope_view_t)((scope_view + 1) % SCOPE_VIEW_COUNT));
             send_cmd(dq, cmd);
         } else if (current_mode == MODE_SIGNAL_GEN) {
             /* Cycle frequency presets: 1 -> 10 -> 100 -> 1k -> 10k -> 25k -> 1 Hz */

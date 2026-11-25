@@ -230,6 +230,8 @@ void     meter_hold_toggle_now(void);     /* OK: freeze the shown reading / back
 void     meter_hold_release(void);
 bool     meter_hold_is_on(void);
 void     meter_function_step(int8_t dir); /* next/previous function (MOVE, LEFT/RIGHT) */
+void     meter_function_select(uint8_t m); /* function by number (remote control) */
+void     meter_layout_select(uint8_t layout); /* view by number, as the View softkey */
 void     meter_limits_nudge(int8_t dir);  /* UP/DOWN in the Limits view */
 bool     meter_softkey_press(int8_t slot);
 void     meter_softkeys_draw(void);

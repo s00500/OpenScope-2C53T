@@ -30,4 +30,17 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t display_queue);
  */
 void input_handle_settings_ok(void);
 
+/*
+ * State changes shared by the buttons and the remote control surface
+ * (remote_ops.c). Input task only, like every other writer of UI state.
+ */
+#include "scope_state.h"
+void input_enter_mode(device_mode_t m);            /* MENU's entry + settings flush */
+bool input_apply_coupling(uint8_t ch, coupling_t c); /* relay with readback; false = unchanged */
+void input_set_persist(bool on);                   /* with the FFT/persistence pool rule */
+void input_settings_tick(void);                    /* the per-button persistence tail */
+#ifdef FEATURE_FFT
+void input_set_scope_view(scope_view_t v);         /* with the FFT pool lifecycle */
+#endif
+
 #endif /* INPUT_HANDLER_H */

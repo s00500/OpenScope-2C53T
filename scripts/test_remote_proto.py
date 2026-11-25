@@ -238,6 +238,87 @@ MUTATIONS: tuple[Mutation, ...] = (
         old="    for (i = 0; i < blen; i++)\n        uart_write(b[i]);\n",
         new="",
     ),
+    # ── M6 control surface (remote_protocol.md §10) ──
+    Mutation(
+        name="M6: SET_PARAM writes a read-only key",
+        old="    if (!writable) {\n        esp_comm_send_nak(ESP_ERR_READ_ONLY);\n        return;\n    }",
+        new="",
+    ),
+    Mutation(
+        name="M6: SET_PARAM skips the value-length check",
+        old="    if (pkt->payload_len != (uint16_t)(1u + n)) {",
+        new="    if (pkt->payload_len < 1u) {",
+    ),
+    Mutation(
+        name="M6: SET_PARAM accepts NaN / inf",
+        old="        if (!f32_finite(v.f)) {",
+        new="        if (0) {",
+    ),
+    Mutation(
+        name="M6: SET_PARAM unknown key reaches the setter",
+        old="    if (!esp_comm_key_info(pkt->payload[0], &type, &writable)) {\n        esp_comm_send_nak(ESP_ERR_UNKNOWN_KEY);\n        return;\n    }",
+        new="    if (!esp_comm_key_info(pkt->payload[0], &type, &writable)) {\n        type = ESP_VT_U8; writable = true;\n    }",
+    ),
+    Mutation(
+        name="M6: i16 value not sign-extended",
+        old="    case ESP_VT_I16: v.i = (int32_t)(int16_t)(uint16_t)bits; break;",
+        new="    case ESP_VT_I16: v.i = (int32_t)(uint16_t)bits; break;",
+    ),
+    Mutation(
+        name="M6: a write that did not take is answered with STATE",
+        old="    r = param_setter(pkt->payload[0], &v);\n    if (r != ESP_APPLY_OK) {",
+        new="    r = param_setter(pkt->payload[0], &v);\n    if (0) {",
+    ),
+    Mutation(
+        name="M6: outcome-unknown reported as 'unchanged'",
+        old="    case ESP_APPLY_TIMED_OUT:   return ESP_ERR_OUTCOME_UNKNOWN;",
+        new="    case ESP_APPLY_TIMED_OUT:   return ESP_ERR_NOT_READY;",
+    ),
+    Mutation(
+        name="M6: hardware refusal reported as a bad argument",
+        old="    case ESP_APPLY_HW_REFUSED:  return ESP_ERR_HW_REFUSED;",
+        new="    case ESP_APPLY_HW_REFUSED:  return ESP_ERR_BAD_ARG;",
+    ),
+    Mutation(
+        name="M6: SET_MODE range check removed",
+        old="    if (pkt->payload[0] > 3u) {",
+        new="    if (0) {",
+    ),
+    Mutation(
+        name="M6: a failed mode switch is answered with STATE",
+        old="    r = mode_setter(pkt->payload[0]);\n    if (r != ESP_APPLY_OK) {",
+        new="    r = mode_setter(pkt->payload[0]);\n    if (0) {",
+    ),
+    Mutation(
+        name="M6: unknown action reaches the handler",
+        old="    if (pkt->payload[0] != ESP_ACT_METER_RESET && pkt->payload[0] != ESP_ACT_SETTINGS_SAVE) {",
+        new="    if (0) {",
+    ),
+    Mutation(
+        name="M6: a refused action is ACKed",
+        old="    r = action_handler(pkt->payload[0], pkt->payload[1]);\n    if (r != ESP_APPLY_OK) {",
+        new="    r = action_handler(pkt->payload[0], pkt->payload[1]);\n    if (0) {",
+    ),
+    Mutation(
+        name="M6: unknown STATE key put on the wire",
+        old="void esp_state_put_int(esp_state_writer_t *w, uint8_t key, int32_t v)\n{\n    uint8_t type;\n    if (!esp_comm_key_info(key, &type, 0)) {\n        w->dropped++;\n        return;\n    }",
+        new="void esp_state_put_int(esp_state_writer_t *w, uint8_t key, int32_t v)\n{\n    uint8_t type;\n    if (!esp_comm_key_info(key, &type, 0)) {\n        type = ESP_VT_U8;\n    }",
+    ),
+    Mutation(
+        name="M6: STATE writer ignores its capacity",
+        old="    if (n == 0 || (uint32_t)w->len + 2u + n > w->cap) {",
+        new="    if (n == 0) {",
+    ),
+    Mutation(
+        name="M6: STATE entries carry a wrong length byte",
+        old="    w->buf[w->len++] = n;",
+        new="    w->buf[w->len++] = 4;",
+    ),
+    Mutation(
+        name="M6: a read-only key flagged writable in the table",
+        old="    { ESP_KEY_SAMPLE_RATE,    ESP_VT_U32, KEY_RO },",
+        new="    { ESP_KEY_SAMPLE_RATE,    ESP_VT_U32, KEY_RW },",
+    ),
     Mutation(
         name="router passes frame bytes to the shell",
         old="        if (!esp_comm_rx_in_frame() && b != ESP_SYNC_BYTE)\n            continue;",

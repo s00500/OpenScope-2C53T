@@ -42,6 +42,10 @@
 #define ESP_CMD_MODULE_DELETE   0x0D    /* Delete a module by slot */
 #define ESP_CMD_GET_METER       0x21    /* remote_protocol.md §3.4: one meter reading */
 #define ESP_CMD_GET_WAVEFORM    0x22    /* §3.4: u8 channel_mask -> one WAVEFORM_FRAME per channel */
+#define ESP_CMD_GET_STATE       0x23    /* M6: -> STATE (every setting, TLV) */
+#define ESP_CMD_SET_MODE        0x24    /* M6: u8 device_mode -> STATE after the switch */
+#define ESP_CMD_SET_PARAM       0x2A    /* M6: u8 key, value -> STATE after the write */
+#define ESP_CMD_ACTION          0x2B    /* M6: u8 action, u8 arg -> ACK */
 
 /* Responses: GD32 → ESP32 */
 #define ESP_RSP_ACK             0x81    /* Command accepted */
@@ -52,6 +56,7 @@
 #define ESP_RSP_MODULE_LIST     0x86    /* Module list response */
 #define ESP_RSP_METER_FRAME     0x90    /* §3.5 METER_FRAME */
 #define ESP_RSP_WAVEFORM_FRAME  0x91    /* §3.5 WAVEFORM_FRAME */
+#define ESP_RSP_STATE           0x92    /* M6 STATE (TLV, layout below) */
 
 /* NAK error codes */
 #define ESP_ERR_UNKNOWN_CMD     0x01
@@ -67,6 +72,13 @@
 #define ESP_ERR_NO_CAPTURE_DATA 0x0B    /* remote_protocol.md §3.4 — never substitute the demo trace */
 #define ESP_ERR_UNSUPPORTED_IN_MODE 0x0C
 #define ESP_ERR_BAD_ARG         0x0D    /* argument out of range */
+#define ESP_ERR_HW_REFUSED      0x0E    /* M6: the hardware write did not take (acq task
+                                         * would not park, relay readback disagreed):
+                                         * nothing changed */
+#define ESP_ERR_UNKNOWN_KEY     0x0F    /* M6: key / action this firmware does not know */
+#define ESP_ERR_READ_ONLY       0x10    /* M6: key is reported, not settable */
+#define ESP_ERR_OUTCOME_UNKNOWN 0x11    /* M6: the write started but did not finish in
+                                         * time: it MAY have taken. Read STATE. */
 
 /* ─── Remote protocol (issue #10, docs/design/remote_protocol.md) ───
  *
@@ -259,6 +271,133 @@ typedef enum {
     ESP_WAVE_BUSY,              /* no tear-free copy within the retry budget */
 } esp_wave_result_t;
 typedef esp_wave_result_t (*esp_wave_fn)(uint8_t channel_mask, esp_wave_snapshot_t *out);
+/* ─── M6: remote control surface (remote_protocol.md §10) ───
+ *
+ * STATE payload: [0] u8 state_version (ESP_STATE_VERSION), then entries
+ *   [u8 key][u8 len][value[len], little-endian]
+ * in no guaranteed order. A host skips keys it does not know by `len`, so
+ * keys are added without a version bump; `len` always equals the key's type
+ * size below, which the host may check. A key is ABSENT when this build has
+ * no such thing (e.g. `view` without FEATURE_FFT) -- never sent as a guess.
+ *
+ * SET_PARAM payload: [u8 key][value of exactly the key's type size]. The
+ * reply to a write that took is the whole STATE read back AFTER it, so a host
+ * sees what the device did (a clamp, an inert output) rather than what it
+ * asked for. A write that did not take is a NAK and changed nothing.
+ *
+ * Writes run in the input task, the one writer of UI state, exactly where a
+ * button press runs, and get the same settings-persistence tail. */
+#define ESP_STATE_VERSION       1
+#define ESP_STATE_MAX_LEN       320     /* ~50 keys x <= 6 B + version byte */
+
+/* Value types (wire size in brackets). */
+#define ESP_VT_U8               1       /* [1] enums and bools (0/1) */
+#define ESP_VT_I16              2       /* [2] */
+#define ESP_VT_U16              3       /* [2] */
+#define ESP_VT_U32              4       /* [4] */
+#define ESP_VT_F32              5       /* [4] IEEE-754; NaN/inf refused on write */
+
+/* Keys. RO = reported only (SET_PARAM answers READ_ONLY). */
+#define ESP_KEY_MODE            0x01    /* u8  RO device_mode_t (SET_MODE changes it) */
+#define ESP_KEY_THEME           0x02    /* u8     theme_id_t 0..3 */
+#define ESP_KEY_STARTUP         0x03    /* u8     startup_mode_t 0 scope 1 meter */
+#define ESP_KEY_MATH            0x04    /* u8     bool */
+#define ESP_KEY_MATH_OP         0x05    /* u8     math_op_t 0..4 */
+#define ESP_KEY_PERSIST         0x06    /* u8     bool */
+#define ESP_KEY_FRAME_GEN       0x07    /* u32 RO generation of the latest committed capture
+                                         *        (= WAVEFORM_FRAME frame_id; +2 per capture,
+                                         *        0 = none): poll this, fetch frames on change */
+
+#define ESP_KEY_TIMEBASE        0x10    /* u8     display timebase code 0..20 (written through
+                                         *        fpga_apply_timebase: display + reg 0x01) */
+#define ESP_KEY_TIMEBASE_HW     0x11    /* u8  RO reg 0x01 code in force */
+#define ESP_KEY_SAMPLE_RATE     0x12    /* u32 RO S/s of the code in force; 0 = no trustworthy rate */
+#define ESP_KEY_RATE_TIER       0x13    /* u8  RO ESP_TIER_* of SAMPLE_RATE */
+#define ESP_KEY_RUNNING         0x14    /* u8     bool RUN/STOP */
+#define ESP_KEY_VIEW            0x15    /* u8     scope_view_t 0 time 1 fft 2 split 3 waterfall 4 xy
+                                         *        (FEATURE_FFT builds only) */
+#define ESP_KEY_GRATICULE       0x16    /* u8     bool: true scale (1) / autofit (0) */
+#define ESP_KEY_SOFTTRIG        0x17    /* u8     bool: software display trigger */
+#define ESP_KEY_COUNTS_PER_DIV  0x18    /* u16 RO ADC counts per vertical division */
+#define ESP_KEY_TRIG_MODE       0x19    /* u8     trigger_mode_t 0 auto 1 normal 2 single */
+#define ESP_KEY_TRIG_EDGE       0x1A    /* u8     trigger_edge_t 0 rising 1 falling */
+#define ESP_KEY_TRIG_SOURCE     0x1B    /* u8     trigger_source_t 0 CH1 1 CH2 */
+#define ESP_KEY_TRIG_LEVEL      0x1C    /* i16    -100..100 (written through fpga_apply_trigger_level) */
+#define ESP_KEY_TRIG_X          0x1D    /* i16    trigger column 8..312 */
+#define ESP_KEY_TRIG_CODE       0x1E    /* u8  RO reg 0x08 code in force */
+#define ESP_KEY_ACTIVE_CH       0x1F    /* u8     0 CH1 1 CH2: what UP/DOWN adjust on the device */
+
+/* Per channel: ESP_KEY_CH_BASE(ch) + offset, ch = 0 (CH1) or 1 (CH2). */
+#define ESP_KEY_CH_BASE(ch)     (uint8_t)(0x20u + 8u * (uint8_t)(ch))
+#define ESP_KEY_CH_ENABLED      0       /* u8     bool */
+#define ESP_KEY_CH_VDIV         1       /* u8     frontend range 0..9 (fpga_apply_vdiv) */
+#define ESP_KEY_CH_COUPLING     2       /* u8     0 DC 1 AC (2 GND is refused: no hardware path) */
+#define ESP_KEY_CH_PROBE        3       /* u8     0 x1 1 x10 */
+#define ESP_KEY_CH_UV_PER_DIV   4       /* u32 RO bench-measured volts/div at the BNC, uV; 0 = none */
+#define ESP_KEY_CH_VDIV_TIER    5       /* u8  RO ESP_TIER_* of UV_PER_DIV */
+
+#define ESP_KEY_METER_FUNCTION  0x30    /* u8     meter submode 0..10 */
+#define ESP_KEY_METER_LAYOUT    0x31    /* u8     0 big 1 graph 2 stats 3 fuse 4 limits */
+#define ESP_KEY_METER_REL       0x32    /* u8     bool relative mode */
+#define ESP_KEY_METER_HOLD      0x33    /* u8     bool hold */
+
+#define ESP_KEY_SG_WAVE         0x40    /* u8     siggen_waveform_t 0..7 */
+#define ESP_KEY_SG_FREQ         0x41    /* f32    Hz (firmware clamps 0.1..25000) */
+#define ESP_KEY_SG_AMP          0x42    /* f32    Vpp (firmware clamps 0..3.3) */
+#define ESP_KEY_SG_OFFSET       0x43    /* f32    V (firmware clamps -1.65..1.65) */
+#define ESP_KEY_SG_DUTY         0x44    /* u8     % (firmware clamps 10..90) */
+#define ESP_KEY_SG_OUTPUT       0x45    /* u8     bool; reads back 0 in builds where the output
+                                         *        is held inert (DAC1 is the scope reference) */
+
+/* Actions (ACTION payload [u8 action][u8 arg]). */
+#define ESP_ACT_METER_RESET     0x01    /* clear min/max/avg; arg 0 */
+#define ESP_ACT_SETTINGS_SAVE   0x02    /* commit pending settings now; arg 0 */
+
+/* Type and writability of a key; false for a key this firmware does not know. */
+bool esp_comm_key_info(uint8_t key, uint8_t *type, bool *writable);
+/* Wire size of a value type, 0 for an unknown type. */
+uint8_t esp_comm_vtype_size(uint8_t type);
+
+/* Incremental STATE encoder handed to the state provider. Put functions
+ * encode by the KEY's type (an integer put on an F32 key is converted, an
+ * unknown key is dropped and counted) so the provider cannot put a value on
+ * the wire in a shape the table does not promise. */
+typedef struct {
+    uint8_t  *buf;
+    uint16_t  cap;
+    uint16_t  len;
+    uint8_t   dropped;      /* unknown keys or no room: a test asserts 0 */
+} esp_state_writer_t;
+
+void esp_state_put_int(esp_state_writer_t *w, uint8_t key, int32_t v);
+void esp_state_put_f32(esp_state_writer_t *w, uint8_t key, float v);
+
+typedef void (*esp_state_fn)(esp_state_writer_t *w);
+
+/* A decoded SET_PARAM value: `i` for integer types, `f` for F32. */
+typedef struct {
+    int32_t i;
+    float   f;
+} esp_value_t;
+
+/* Outcome of a write. Anything but OK is a NAK and must mean "nothing
+ * changed": a provider that cannot promise that must not return early. */
+typedef enum {
+    ESP_APPLY_OK = 0,
+    ESP_APPLY_BAD_ARG,          /* value out of range           -> NAK BAD_ARG */
+    ESP_APPLY_WRONG_MODE,       /* not meaningful in this mode  -> NAK UNSUPPORTED_IN_MODE */
+    ESP_APPLY_HW_REFUSED,       /* hardware write did not take  -> NAK HW_REFUSED */
+    ESP_APPLY_BUSY,             /* input task did not take it   -> NAK NOT_READY */
+    ESP_APPLY_UNSUPPORTED,      /* not in this build            -> NAK UNSUPPORTED */
+    ESP_APPLY_UNKNOWN,          /* key/action not handled       -> NAK UNKNOWN_KEY */
+    ESP_APPLY_TIMED_OUT,        /* started, never finished      -> NAK OUTCOME_UNKNOWN
+                                 * (the one result that does NOT promise "unchanged") */
+} esp_apply_result_t;
+
+typedef esp_apply_result_t (*esp_mode_fn)(uint8_t mode);
+typedef esp_apply_result_t (*esp_param_fn)(uint8_t key, const esp_value_t *v);
+typedef esp_apply_result_t (*esp_action_fn)(uint8_t action, uint8_t arg);
+
 /* Inject a button press (id 1..15 = button_id_t). Return false if it could
  * not be queued, so the host gets NAK instead of a false ACK. */
 typedef bool (*esp_button_fn)(uint8_t button_id);
@@ -363,6 +502,10 @@ void esp_comm_set_status_provider(esp_status_fn fn);
 void esp_comm_set_button_injector(esp_button_fn fn);
 void esp_comm_set_meter_provider(esp_meter_fn fn);
 void esp_comm_set_waveform_provider(esp_wave_fn fn);
+void esp_comm_set_state_provider(esp_state_fn fn);
+void esp_comm_set_mode_setter(esp_mode_fn fn);
+void esp_comm_set_param_setter(esp_param_fn fn);
+void esp_comm_set_action_handler(esp_action_fn fn);
 
 /* True while a frame is being received (sync seen, checksum not yet). */
 bool esp_comm_rx_in_frame(void);

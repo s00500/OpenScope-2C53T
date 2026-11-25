@@ -24,6 +24,7 @@
 #include "esp_comm.h"
 #include "battery.h"
 #include "button_scan.h"
+#include "../tasks/remote_ops.h"
 
 /* On the bench unit USB CDC never enumerates (error -71, unsolved), yet
  * usbd_connect_state_get() still reports CONFIGURED — so usb_send_bytes()
@@ -8606,6 +8607,11 @@ static void vUsbDebugTask(void *pvParameters)
     esp_comm_set_button_injector(button_scan_inject);
     esp_comm_set_meter_provider(remote_meter);
     esp_comm_set_waveform_provider(remote_waveform);
+    /* M6 control surface: every write runs in the input task (remote_ops.c). */
+    esp_comm_set_state_provider(remote_state);
+    esp_comm_set_mode_setter(remote_set_mode);
+    esp_comm_set_param_setter(remote_set_param);
+    esp_comm_set_action_handler(remote_action);
 
     for (;;) {
         bool did_work = false;

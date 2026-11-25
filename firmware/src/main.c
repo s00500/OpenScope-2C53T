@@ -27,6 +27,7 @@ extern void system_clock_config(void);
 #include "scope_state.h"
 #include "scope_cal.h"
 #include "input_handler.h"
+#include "remote_ops.h"
 #include "theme.h"
 #include "math_channel.h"
 #include "component_test.h"
@@ -822,7 +823,12 @@ static void vInputTask(void *pvParameters)
 
         /* Block until TMR3 ISR confirms a debounced button press */
         if (xQueueReceive(xInputQueue, &pressed, pdMS_TO_TICKS(100)) == pdTRUE) {
-            input_handle_button(pressed, xDisplayQueue);
+            /* A remote write (remote_ops.c) rides the same queue so it runs
+             * here, serialised with the presses, never beside them. */
+            if ((uint32_t)pressed == BTN_REMOTE_OP)
+                remote_ops_service(xDisplayQueue);
+            else
+                input_handle_button(pressed, xDisplayQueue);
         }
 
         /* Check in with health monitor */

@@ -219,6 +219,10 @@ void siggen_set_amplitude(float vpp)
 
 void siggen_set_offset(float offset_v)
 {
+    /* The DAC spans 0..3.3 V around mid-scale: an offset past half of that
+     * only clips. Clamped here because a remote host can send any float. */
+    if (offset_v < -1.65f) offset_v = -1.65f;
+    if (offset_v > 1.65f) offset_v = 1.65f;
     g_config.offset_v = offset_v;
     siggen_update_dac();
 }
@@ -291,6 +295,7 @@ siggen_waveform_t siggen_cycle_waveform(void)
 {
     g_config.waveform = (siggen_waveform_t)((g_config.waveform + 1) % SIGGEN_WAVEFORM_COUNT);
     g_phase_acc = 0;
+    siggen_update_dac();    /* without it the output kept the old shape */
     return g_config.waveform;
 }
 
@@ -299,6 +304,7 @@ void siggen_set_duty_cycle(uint8_t pct)
     if (pct < 10) pct = 10;
     if (pct > 90) pct = 90;
     g_config.duty_cycle_pct = pct;
+    siggen_update_dac();    /* same: the live output must follow the setting */
 }
 
 float siggen_amplitude_up(void)

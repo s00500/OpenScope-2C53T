@@ -501,3 +501,101 @@ EXP-61 could not reproduce the wedge on demand (48 MB clean); EXP-66 (PR #48's b
 one two hours into a session — two consecutive lost-completion stalls during an `opread` dump — and the
 heal fired once: the port re-enumerated by itself, no reset, no replug. One occurrence; the wedge's
 mechanism is still open, and PR #48 keeps the triggering stall's snapshot in its own fields.
+
+## 10. M6: the control surface (2026-11-25)
+
+Status: implemented on `feat/remote-control` (stacked on #47), host-tested; **not yet run on
+hardware.** The host is the Go CLI `openscope-cli` (a separate repository); the Python host in
+`tools/openscope_host/` does not speak these commands yet.
+
+### 10.1 Why it is shaped this way
+
+The §3.4 sketch had one command per scope setting (`0x25`..`0x29`). The surface the CLI needs
+is wider (signal generator, meter function and view, theme, startup mode, math, persistence,
+per-channel coupling/probe/enable) and will keep growing, so it is one generic key/value pair
+instead of a command per setting:
+
+| Code | Name | Payload | Reply |
+|---|---|---|---|
+| `0x23` | `GET_STATE` | none | `0x92 STATE` |
+| `0x24` | `SET_MODE` | `u8 mode` 0..3 | `STATE` after the switch |
+| `0x2A` | `SET_PARAM` | `u8 key`, value (LE, exactly the key's type size) | `STATE` read back after the write |
+| `0x2B` | `ACTION` | `u8 action`, `u8 arg` | `ACK` |
+
+`STATE` is `[u8 state_version = 1]` followed by entries `[u8 key][u8 len][value]`. A host skips
+keys it does not know by `len`, so keys are added without a version bump; `len` always equals the
+key's type size. A key the build does not have (e.g. `view` without `FEATURE_FFT`) is absent,
+never sent as a guess. The key table, with types and read-only flags, is in `esp_comm.h`
+(`ESP_KEY_*`) and `key_table[]` in `esp_comm.c`; both the encoder and the `SET_PARAM` decoder
+read that one table.
+
+Replying to a write with the whole state read back is deliberate: the host shows what the device
+did (a clamped frequency, an inert siggen output in a coldtrace build) rather than what it asked.
+
+New NAK codes: `HW_REFUSED 0x0E` (an `fpga_apply_*` returned false, or a relay readback
+disagreed), `UNKNOWN_KEY 0x0F`, `READ_ONLY 0x10`, `OUTCOME_UNKNOWN 0x11`.
+
+### 10.2 Where a write runs
+
+Every UI-state variable has one writer, the input task. The shell's own setters (`fpga scope
+trigmode`, `mode`, ...) write from the shell task instead, which races a button press and skips
+the settings store. M6 does not: `remote_ops.c` hands each write to the input task through a
+single-slot mailbox, woken by a sentinel (`BTN_REMOTE_OP = 0x7F`) posted into the same queue the
+key scan feeds. The op then runs between presses with the same setters, the same hardware entry
+points and the same persistence tail (`settings_store_note_change/service`) as a button, and the
+display gets `DCMD_REDRAW_ALL`.
+
+Contract: `OK` means the write took; any NAK means nothing changed, with one exception. If the
+input task has not picked an op up within 3 s, the submitter cancels it atomically against the
+pickup and answers `NOT_READY` (provably unchanged). An op that has started is waited for; one
+that overruns 8 s answers `OUTCOME_UNKNOWN`, the only "may have taken" reply, and its late
+completion is discarded.
+
+Rules, mirroring the buttons:
+
+- Keys that drive hardware need their mode: `timebase`, `trig.level`, `chN.vdiv`,
+  `chN.coupling` and `view` need scope mode; every `meter.*` key needs meter mode; every `sg.*`
+  key needs siggen mode. Pure scope settings (`trig.mode`, `trig.edge`, `running`, `chN.probe`,
+  ...) are accepted in any mode. A wrong mode is `UNSUPPORTED_IN_MODE`.
+- Hardware first, label after: `timebase`, `trig.level` and `chN.vdiv` call the
+  `fpga_apply_*` entry point and change `scope_state` only if it returned true (EXP-17/19).
+- `chN.coupling` GND is `UNSUPPORTED`: no hardware ground path is known.
+- `SET_MODE` to the current mode re-enters nothing (no repeated FPGA entry).
+- Read-only keys report what the hardware is doing: `timebase.hw` (reg 0x01 in force),
+  `sample_rate` and its tier (withheld as 0 when display and hardware disagree, as in
+  `WAVEFORM_FRAME`), `chN.uv_per_div` and its tier, `trig.code` (reg 0x08 in force), and
+  `capture.gen`, the generation of the latest committed capture (= `WAVEFORM_FRAME.frame_id`,
+  0 outside scope mode or before the first capture). A host polls the ~160 B `STATE` and fetches
+  2 KB of waveform only when `capture.gen` moves.
+
+Refactors that came with it, so the remote path reuses the button code instead of copying it:
+`input_enter_mode()` (MENU's entry), `input_apply_coupling()`, `input_set_persist()`,
+`input_set_scope_view()` (PRM's FFT pool lifecycle), `input_settings_tick()`,
+`meter_function_select()`, `meter_layout_select()`. Two siggen bugs surfaced and were fixed:
+`siggen_cycle_waveform()` and `siggen_set_duty_cycle()` never refreshed the DAC, so the live
+output kept the old shape; `siggen_set_offset()` is now clamped to ±1.65 V.
+
+### 10.3 Tests
+
+`test_remote_proto.c` grew from 123 to 203 checks: TLV layout per type, unknown keys never on
+the wire, writer capacity (canary-guarded), `SET_PARAM` decoding (u8, i16 sign extension, f32)
+and every rejection path (unknown key, read-only key, wrong length, NaN/inf, each apply result
+mapped to its NAK, never a `STATE` after a failure), `SET_MODE` range, `ACTION`. 16 new guard
+mutations in `scripts/test_remote_proto.py`, all caught (56/56 in total).
+
+Not covered by host tests: `remote_ops.c` itself (it needs FreeRTOS and the UI globals). Its
+first real test is the bench.
+
+### 10.4 Bench acceptance (to do)
+
+On a unit with working CDC, flashed with `make guest-coldtrace` from this branch:
+
+1. `openscope info` reports "remote control: available".
+2. `openscope mode siggen`, `settings`, `meter`, `scope`: the LCD follows each one.
+3. `openscope set ch1.vdiv 6 trig.mode normal theme 1`: the LCD shows each change; a press on the
+   device afterwards behaves as if the change had been made with the buttons.
+4. Power-cycle: the persisted settings come back.
+5. `openscope live` with the bench source on CH1: the trace tracks the signal; keys in the live
+   view change the LCD too; unplug and replug recovers.
+6. Control: `openscope set sg.freq 1k` in scope mode answers `UNSUPPORTED_IN_MODE` and changes
+   nothing.

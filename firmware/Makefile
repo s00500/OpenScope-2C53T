@@ -50,6 +50,7 @@ C_SOURCES += src/ui/scope_timebase.c
 C_SOURCES += src/ui/scope_cursor.c
 C_SOURCES += src/ui/scope_freq.c
 C_SOURCES += src/tasks/input_handler.c
+C_SOURCES += src/tasks/remote_ops.c
 C_SOURCES += src/drivers/flash_fs.c
 C_SOURCES += src/drivers/flash_regions.c
 C_SOURCES += src/drivers/flash_regions_w25q.c

@@ -965,6 +965,12 @@ static void meter_function_set(uint8_t m)
     fpga_request_meter_mode(meter_submode);             /* in the background: the UI shows dashes meanwhile */
 }
 
+void meter_function_select(uint8_t m)
+{
+    if (m < METER_SUBMODE_COUNT)
+        meter_function_set(m);
+}
+
 void meter_function_step(int8_t dir)
 {
     uint8_t m = meter_submode < METER_SUBMODE_COUNT ? meter_submode : 0;
@@ -1330,7 +1336,15 @@ static void skp_view(void)
 {
     uint8_t i = 0;
     while (i < METER_LAYOUT_COUNT && meter_view_order[i] != meter_layout) i++;
-    meter_layout = meter_view_order[(i + 1) % METER_LAYOUT_COUNT];
+    meter_layout_select(meter_view_order[(i + 1) % METER_LAYOUT_COUNT]);
+}
+
+/* A view by number, with the side effects the View softkey has. */
+void meter_layout_select(uint8_t layout)
+{
+    if (layout >= METER_LAYOUT_COUNT)
+        return;
+    meter_layout = layout;
     if (meter_layout == METER_LAYOUT_FUSE && meter_submode != 0) {
         meter_function_set(0);                          /* the fuse tester reads a DC drop */
         scope_show_popup("Fuse tester: DC V");

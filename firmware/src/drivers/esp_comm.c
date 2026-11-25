@@ -67,6 +67,10 @@ static esp_status_fn status_provider = 0;
 static esp_button_fn button_injector = 0;
 static esp_meter_fn meter_provider = 0;
 static esp_wave_fn wave_provider = 0;
+static esp_state_fn state_provider = 0;
+static esp_mode_fn mode_setter = 0;
+static esp_param_fn param_setter = 0;
+static esp_action_fn action_handler = 0;
 
 /* Reported only when no status provider is bound (host tests, bare ESP32
  * bring-up). The firmware binds the real build string. */
@@ -126,6 +130,26 @@ void esp_comm_set_meter_provider(esp_meter_fn fn)
 void esp_comm_set_waveform_provider(esp_wave_fn fn)
 {
     wave_provider = fn;
+}
+
+void esp_comm_set_state_provider(esp_state_fn fn)
+{
+    state_provider = fn;
+}
+
+void esp_comm_set_mode_setter(esp_mode_fn fn)
+{
+    mode_setter = fn;
+}
+
+void esp_comm_set_param_setter(esp_param_fn fn)
+{
+    param_setter = fn;
+}
+
+void esp_comm_set_action_handler(esp_action_fn fn)
+{
+    action_handler = fn;
 }
 
 void esp_comm_get_rx_stats(esp_rx_stats_t *out)
@@ -747,6 +771,273 @@ static void handle_fw_update_commit(const esp_packet_t *pkt)
 
 #endif /* ESP_COMM_TRANSFER_STUBS */
 
+/* ─── M6: remote control surface (esp_comm.h, remote_protocol.md §10) ─── */
+
+/* The wire contract for every key: its type and whether a host may write it.
+ * The encoder and the SET_PARAM decoder both read THIS table, so a value can
+ * never go out, or be accepted, in a shape the header does not promise. */
+#define KEY_RO 0u
+#define KEY_RW 1u
+#define CH_KEYS(ch) \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_ENABLED),    ESP_VT_U8,  KEY_RW }, \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_VDIV),       ESP_VT_U8,  KEY_RW }, \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_COUPLING),   ESP_VT_U8,  KEY_RW }, \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_PROBE),      ESP_VT_U8,  KEY_RW }, \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_UV_PER_DIV), ESP_VT_U32, KEY_RO }, \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_VDIV_TIER),  ESP_VT_U8,  KEY_RO }
+
+static const struct { uint8_t key, type, rw; } key_table[] = {
+    { ESP_KEY_MODE,           ESP_VT_U8,  KEY_RO },
+    { ESP_KEY_THEME,          ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_STARTUP,        ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_MATH,           ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_MATH_OP,        ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_PERSIST,        ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_FRAME_GEN,      ESP_VT_U32, KEY_RO },
+    { ESP_KEY_TIMEBASE,       ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_TIMEBASE_HW,    ESP_VT_U8,  KEY_RO },
+    { ESP_KEY_SAMPLE_RATE,    ESP_VT_U32, KEY_RO },
+    { ESP_KEY_RATE_TIER,      ESP_VT_U8,  KEY_RO },
+    { ESP_KEY_RUNNING,        ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_VIEW,           ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_GRATICULE,      ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_SOFTTRIG,       ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_COUNTS_PER_DIV, ESP_VT_U16, KEY_RO },
+    { ESP_KEY_TRIG_MODE,      ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_TRIG_EDGE,      ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_TRIG_SOURCE,    ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_TRIG_LEVEL,     ESP_VT_I16, KEY_RW },
+    { ESP_KEY_TRIG_X,         ESP_VT_I16, KEY_RW },
+    { ESP_KEY_TRIG_CODE,      ESP_VT_U8,  KEY_RO },
+    { ESP_KEY_ACTIVE_CH,      ESP_VT_U8,  KEY_RW },
+    CH_KEYS(0u),
+    CH_KEYS(1u),
+    { ESP_KEY_METER_FUNCTION, ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_METER_LAYOUT,   ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_METER_REL,      ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_METER_HOLD,     ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_SG_WAVE,        ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_SG_FREQ,        ESP_VT_F32, KEY_RW },
+    { ESP_KEY_SG_AMP,         ESP_VT_F32, KEY_RW },
+    { ESP_KEY_SG_OFFSET,      ESP_VT_F32, KEY_RW },
+    { ESP_KEY_SG_DUTY,        ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_SG_OUTPUT,      ESP_VT_U8,  KEY_RW },
+};
+
+uint8_t esp_comm_vtype_size(uint8_t type)
+{
+    switch (type) {
+    case ESP_VT_U8:  return 1;
+    case ESP_VT_I16:
+    case ESP_VT_U16: return 2;
+    case ESP_VT_U32:
+    case ESP_VT_F32: return 4;
+    default:         return 0;
+    }
+}
+
+bool esp_comm_key_info(uint8_t key, uint8_t *type, bool *writable)
+{
+    for (size_t i = 0; i < sizeof(key_table) / sizeof(key_table[0]); i++) {
+        if (key_table[i].key != key)
+            continue;
+        if (type) *type = key_table[i].type;
+        if (writable) *writable = key_table[i].rw == KEY_RW;
+        return true;
+    }
+    return false;
+}
+
+static bool f32_finite(float f)
+{
+    uint32_t bits;
+    memcpy(&bits, &f, sizeof(bits));
+    return ((bits >> 23) & 0xFFu) != 0xFFu;     /* exponent all ones = inf or NaN */
+}
+
+static void state_put_raw(esp_state_writer_t *w, uint8_t key, uint8_t type, uint32_t bits)
+{
+    uint8_t n = esp_comm_vtype_size(type);
+    if (n == 0 || (uint32_t)w->len + 2u + n > w->cap) {
+        w->dropped++;
+        return;
+    }
+    w->buf[w->len++] = key;
+    w->buf[w->len++] = n;
+    for (uint8_t i = 0; i < n; i++)
+        w->buf[w->len++] = (uint8_t)(bits >> (8u * i));
+}
+
+void esp_state_put_int(esp_state_writer_t *w, uint8_t key, int32_t v)
+{
+    uint8_t type;
+    if (!esp_comm_key_info(key, &type, 0)) {
+        w->dropped++;
+        return;
+    }
+    if (type == ESP_VT_F32) {
+        esp_state_put_f32(w, key, (float)v);
+        return;
+    }
+    state_put_raw(w, key, type, (uint32_t)v);
+}
+
+void esp_state_put_f32(esp_state_writer_t *w, uint8_t key, float v)
+{
+    uint8_t type;
+    uint32_t bits;
+    if (!esp_comm_key_info(key, &type, 0)) {
+        w->dropped++;
+        return;
+    }
+    if (type != ESP_VT_F32) {
+        esp_state_put_int(w, key, (int32_t)v);
+        return;
+    }
+    memcpy(&bits, &v, sizeof(bits));
+    state_put_raw(w, key, type, bits);
+}
+
+/* STATE: the provider's view, read now. The buffer lives on this task's
+ * stack for the duration of the send only. */
+static void send_state(void)
+{
+    uint8_t out[ESP_STATE_MAX_LEN];
+    esp_state_writer_t w = { out, sizeof(out), 0, 0 };
+
+    if (!state_provider) {
+        esp_comm_send_nak(ESP_ERR_UNSUPPORTED);
+        return;
+    }
+    out[w.len++] = ESP_STATE_VERSION;
+    state_provider(&w);
+    esp_comm_send_response(ESP_RSP_STATE, out, w.len);
+}
+
+static uint8_t apply_nak(esp_apply_result_t r)
+{
+    switch (r) {
+    case ESP_APPLY_BAD_ARG:     return ESP_ERR_BAD_ARG;
+    case ESP_APPLY_WRONG_MODE:  return ESP_ERR_UNSUPPORTED_IN_MODE;
+    case ESP_APPLY_HW_REFUSED:  return ESP_ERR_HW_REFUSED;
+    case ESP_APPLY_BUSY:        return ESP_ERR_NOT_READY;
+    case ESP_APPLY_UNSUPPORTED: return ESP_ERR_UNSUPPORTED;
+    case ESP_APPLY_UNKNOWN:     return ESP_ERR_UNKNOWN_KEY;
+    case ESP_APPLY_TIMED_OUT:   return ESP_ERR_OUTCOME_UNKNOWN;
+    default:                    return ESP_ERR_NOT_READY;   /* never an ACK for an unknown outcome */
+    }
+}
+
+static void handle_get_state(const esp_packet_t *pkt)
+{
+    if (pkt->payload_len != 0) {
+        esp_comm_send_nak(ESP_ERR_BAD_LENGTH);
+        return;
+    }
+    send_state();
+}
+
+static void handle_set_mode(const esp_packet_t *pkt)
+{
+    esp_apply_result_t r;
+    if (pkt->payload_len != 1) {
+        esp_comm_send_nak(ESP_ERR_BAD_LENGTH);
+        return;
+    }
+    if (pkt->payload[0] > 3u) {             /* device_mode_t: scope meter siggen settings */
+        esp_comm_send_nak(ESP_ERR_BAD_ARG);
+        return;
+    }
+    if (!mode_setter || !state_provider) {
+        esp_comm_send_nak(ESP_ERR_UNSUPPORTED);
+        return;
+    }
+    r = mode_setter(pkt->payload[0]);
+    if (r != ESP_APPLY_OK) {
+        esp_comm_send_nak(apply_nak(r));
+        return;
+    }
+    send_state();
+}
+
+static void handle_set_param(const esp_packet_t *pkt)
+{
+    uint8_t type, n;
+    bool writable;
+    uint32_t bits = 0;
+    esp_value_t v = { 0, 0.0f };
+    esp_apply_result_t r;
+
+    if (pkt->payload_len < 1) {
+        esp_comm_send_nak(ESP_ERR_BAD_LENGTH);
+        return;
+    }
+    if (!esp_comm_key_info(pkt->payload[0], &type, &writable)) {
+        esp_comm_send_nak(ESP_ERR_UNKNOWN_KEY);
+        return;
+    }
+    if (!writable) {
+        esp_comm_send_nak(ESP_ERR_READ_ONLY);
+        return;
+    }
+    n = esp_comm_vtype_size(type);
+    if (pkt->payload_len != (uint16_t)(1u + n)) {
+        esp_comm_send_nak(ESP_ERR_BAD_LENGTH);
+        return;
+    }
+    for (uint8_t i = 0; i < n; i++)
+        bits |= (uint32_t)pkt->payload[1u + i] << (8u * i);
+    switch (type) {
+    case ESP_VT_U8:  v.i = (int32_t)(uint8_t)bits; break;
+    case ESP_VT_I16: v.i = (int32_t)(int16_t)(uint16_t)bits; break;
+    case ESP_VT_U16: v.i = (int32_t)(uint16_t)bits; break;
+    case ESP_VT_U32: v.i = (int32_t)bits; break;
+    case ESP_VT_F32:
+        memcpy(&v.f, &bits, sizeof(v.f));
+        if (!f32_finite(v.f)) {
+            esp_comm_send_nak(ESP_ERR_BAD_ARG);
+            return;
+        }
+        break;
+    default:
+        esp_comm_send_nak(ESP_ERR_UNKNOWN_KEY);
+        return;
+    }
+    if (!param_setter || !state_provider) {
+        esp_comm_send_nak(ESP_ERR_UNSUPPORTED);
+        return;
+    }
+    r = param_setter(pkt->payload[0], &v);
+    if (r != ESP_APPLY_OK) {
+        esp_comm_send_nak(apply_nak(r));
+        return;
+    }
+    send_state();
+}
+
+static void handle_action(const esp_packet_t *pkt)
+{
+    esp_apply_result_t r;
+    if (pkt->payload_len != 2) {
+        esp_comm_send_nak(ESP_ERR_BAD_LENGTH);
+        return;
+    }
+    if (pkt->payload[0] != ESP_ACT_METER_RESET && pkt->payload[0] != ESP_ACT_SETTINGS_SAVE) {
+        esp_comm_send_nak(ESP_ERR_UNKNOWN_KEY);
+        return;
+    }
+    if (!action_handler) {
+        esp_comm_send_nak(ESP_ERR_UNSUPPORTED);
+        return;
+    }
+    r = action_handler(pkt->payload[0], pkt->payload[1]);
+    if (r != ESP_APPLY_OK) {
+        esp_comm_send_nak(apply_nak(r));
+        return;
+    }
+    esp_comm_send_ack();
+}
+
 /* ─── Command dispatcher ─── */
 
 void esp_comm_process(const esp_packet_t *pkt)
@@ -762,6 +1053,10 @@ void esp_comm_process(const esp_packet_t *pkt)
     case ESP_CMD_BUTTON:            handle_button(pkt); break;
     case ESP_CMD_GET_METER:         handle_get_meter(pkt); break;
     case ESP_CMD_GET_WAVEFORM:      handle_get_waveform(pkt); break;
+    case ESP_CMD_GET_STATE:         handle_get_state(pkt); break;
+    case ESP_CMD_SET_MODE:          handle_set_mode(pkt); break;
+    case ESP_CMD_SET_PARAM:         handle_set_param(pkt); break;
+    case ESP_CMD_ACTION:            handle_action(pkt); break;
 #if ESP_COMM_TRANSFER_STUBS
     /* ESP32 co-processor staging. The flash writes are still TODO, so these
      * are compiled only where that is understood (the legacy flow tests). */
