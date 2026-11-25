@@ -298,6 +298,8 @@ static uint32_t g_info_bar_epoch;
  * so the out-of-scope popup is re-drawn on top of it (softkey UI P0). */
 static bool g_screen_painted;
 
+static uint32_t siggen_ui_epoch(void);
+
 static uint32_t info_bar_epoch(void)
 {
     uint32_t h = REDRAW_EPOCH_SEED;
@@ -319,6 +321,9 @@ static uint32_t info_bar_epoch(void)
     } else if (current_mode == MODE_MULTIMETER) {
         h = redraw_epoch_mix(h, (uint32_t)meter_submode);
         h = redraw_epoch_mix(h, meter_softkeys_epoch());
+    } else if (current_mode == MODE_SIGNAL_GEN) {
+        /* The bar summarises the generator (status_bar.c). */
+        h = redraw_epoch_mix(h, siggen_ui_epoch());
     }
     return h;
 }

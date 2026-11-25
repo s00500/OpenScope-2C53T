@@ -10,6 +10,7 @@
 #include "scope_cal.h"
 #include "scope_timebase.h"
 #include "battery.h"
+#include "signal_gen.h"
 #include "at32f403a_407.h"
 #include <stdio.h>
 
@@ -168,12 +169,29 @@ void draw_info_bar(void)
                              ib, &font_small);
         }
         break;
-    case MODE_SIGNAL_GEN:
-        font_draw_string(4, LCD_HEIGHT - 14, "Sine 1.000kHz",
-                         th->ch1, ib, &font_small);
-        font_draw_string(200, LCD_HEIGHT - 14, "3.3Vpp",
-                         th->success, ib, &font_small);
+    case MODE_SIGNAL_GEN: {
+        /* What GEN is doing now: the waveform and the frequency TMR7 really
+         * produces (EXP-79: the Rigol's counter agrees with it to the
+         * crystal offset), then amplitude and on/off. This was a fixed
+         * "Sine 1.000kHz  3.3Vpp" whatever the settings were. */
+        const siggen_config_t *g = siggen_get_config();
+        siggen_timing_t t;
+        bool run = siggen_get_timing(&t);
+        char buf[32];
+        if (run && t.actual_mhz != g->frequency_hz * 1000u)
+            snprintf(buf, sizeof buf, "%s %lu.%03lu Hz", siggen_wave_name(g->waveform),
+                     (unsigned long)(t.actual_mhz / 1000u),
+                     (unsigned long)(t.actual_mhz % 1000u));
+        else
+            snprintf(buf, sizeof buf, "%s %lu Hz", siggen_wave_name(g->waveform),
+                     (unsigned long)g->frequency_hz);
+        font_draw_string(4, LCD_HEIGHT - 14, buf, th->ch1, ib, &font_small);
+        snprintf(buf, sizeof buf, "%u.%u V %s", g->amplitude_dv / 10u,
+                 g->amplitude_dv % 10u, run ? "ON" : "OFF");
+        font_draw_string(236, LCD_HEIGHT - 14, buf,
+                         run ? th->success : th->warning, ib, &font_small);
         break;
+    }
     case MODE_SETTINGS:
         font_draw_string(4, LCD_HEIGHT - 14, "MENU/SELECT to navigate",
                          th->text_secondary, ib, &font_small);
