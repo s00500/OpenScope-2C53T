@@ -1,7 +1,8 @@
 # EXP-76: the display task stops; acquisition does not
 
 - **Date:** 2026-11-25
-- **Unit:** bench unit #1
+- **Unit:** unit #4 (the new 2C53T of EXP-74; an earlier version of this file
+  said "bench unit #1", which was wrong)
 - **Build:** `make guest-coldtrace` from `feat/remote-control` (PR #47 + M6
   control surface, uncommitted working tree), image sha256 `570b4c9f…`,
   flashed by the user through the factory IAP drive

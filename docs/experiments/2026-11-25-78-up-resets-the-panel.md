@@ -1,14 +1,16 @@
 # EXP-78: pressing UP resets the LCD controller
 
 - **Date:** 2026-11-25
-- **Unit:** bench unit #1
+- **Unit:** unit #4 (the new 2C53T of EXP-74). The first commits of this
+  session said "bench unit #1"; that was wrong.
 - **Build:** `make guest-coldtrace` from `feat/remote-control`, flashed over CDC:
   `exp78-lcd.bin` (readback, build 21:47:07), then `exp78-heal.bin`
-  (+ recovery, build 22:08:06, sha256 `145c2730…`)
-- **Status:** CAUSE LOCATED to the panel getting a hardware reset on a
-  physical press of UP; root cause (mechanical or electrical) NOT established.
-  Firmware recovery built; its positive control passes; the physical-press
-  check of the recovery is pending.
+  (+ recovery, build 22:08:06, sha256 `145c2730…`), then 2438e09 (+ the PD6
+  fix cherry-picked from #85, build 22:58:44)
+- **Status:** CONFIRMED. The panel's reset line PD6 (RESX) floats in
+  OpenScope, and a physical key press pulses it low: issue #85 (deOliveira-R,
+  2026-11-12) found and fixed this on unit #2; holding PD6 high ends it on
+  unit #4 too. We should have searched the issues before the bench work.
 
 ## 1. Problem
 
@@ -95,11 +97,31 @@ map, panel readback) causes it. Next reference: the v0.4.1 release image
 release SHA256SUMS; installer passes the #42 check, so the CDC round trip is
 safe).
 
+**v0.4.1 release** (`openscope-2c53t-v0.4.1-coldtrace.bin`, build Oct 5
+15:13:06, flashed over CDC): **goes white on a physical UP press too.** Three
+firmwares, the same reset: not a regression.
+
+**Root cause: PD6, the ST7789V's RESX, floats (issue #85).** Found by searching
+the upstream issues after the A/B runs; #85 reports the same signature (RDDPM
+0x08, COLMOD 0x06) after key presses on unit #2, shows stock V1.2.0 holding PD6
+as a push-pull output, high (0x0802ABEC / 0x0802AC5A..0x0802AD0A), and confirms
+PD6 = RESX functionally (PD6 low -> white). Our own GPIOD dump earlier in this
+session already showed it: CRL `B4BB44BB`, PD6 nibble 4 = floating input (read
+1: the line idles high but nothing holds it).
+
+| step on unit #4 | result |
+|---|---|
+| live, from the shell: PD6 output latch set high (`mem write 0x40011410 0x40`), then `gpio mode D6 out` (no low glitch) | PD6 CRL 3, odt 1; panel untouched (0x9C, 0 recoveries) |
+| user presses UP several times | "no white anymore"; **4337 checks, 0 recoveries** (before: 1-2 per press) |
+| cherry-pick of #85's 2c68e37 as 2438e09 (PD6 held high in the boot LCD block, write cycle 17 ns -> 67 ns), flashed | at boot PD6 = out PP high, SNWTCFG0 low half 0x0A06; panel 0x9C, 0 recoveries; display loop 9 passes/s before and after |
+
 ## 6. Blind spots
 
-- "Mechanical" is inferred by elimination (the UP net and the firmware path
-  are excluded); no one has looked at the board. An ESD or ground-bounce path
-  through the user's finger is not excluded either.
+- WITHDRAWN 2026-11-25: "Mechanical" was inferred by elimination. The
+  elimination never covered PD6, because which pin is RESX was not known here
+  (it was, in #85). Root cause above.
+- An ESD or ground-bounce path through the user's finger is what couples into
+  the floating RESX; that coupling path itself was not measured.
 - Driving PC13 low tests the MCU side of the UP net; a switch whose other side
   is not ground, or a second contact in the same key, would not be seen.
 - Whether stock firmware shows the same white screen on this unit is unknown
@@ -111,9 +133,13 @@ safe).
   state after a physical UP press; the MCU, the drawing and the LCD bus are
   fine.
 - **Excluded:** firmware panel commands; the range relays via the firmware
-  path; the UP net pulled low; the LCD pin configuration.
-- **NOT excluded:** the root cause (mechanical flex of the board / LCD FPC,
-  ESD). Worth a look with the case open: the LCD connector and what sits
-  under the UP key.
-- **Follow-up:** physical-press check of the recovery; try other keys and
-  pressing the case near UP without actuating it.
+  path; the UP net pulled low; a regression (three firmwares incl. v0.4.1).
+- WITHDRAWN 2026-11-25: "the LCD pin configuration" was listed as excluded.
+  Only the bus pins were checked; the reset pin PD6 was floating. And "NOT
+  excluded: mechanical flex / ESD" as the open root cause: superseded by
+  PD6 (#85).
+- **Established (final):** PD6 floating is the cause; holding it high fixes
+  it on unit #4 (0 recoveries over many UP presses). The self-heal stays as a
+  safety net; for upstream, #85's `pr/lcd-health-check` covers the same.
+- **Follow-up:** none for this symptom. Lesson: search the issue tracker
+  before the bench.

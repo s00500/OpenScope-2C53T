@@ -1,7 +1,8 @@
 # EXP-77: a grounded probe drew as a comb
 
 - **Date:** 2026-11-25
-- **Unit:** bench unit #1
+- **Unit:** unit #4 (the new 2C53T of EXP-74; an earlier version of this file
+  said "bench unit #1", which was wrong)
 - **Build:** `make guest-coldtrace` from `feat/remote-control` (uncommitted
   working tree), flashed over CDC (`cdc_flash.py`, slot b) as
   `exp77-vmap.bin`, sha256 `aa28f9b0…`, build "Nov 25 2026 21:36:03".
