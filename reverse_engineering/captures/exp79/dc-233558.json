@@ -1,0 +1,776 @@
+{
+ "rows": [
+  {
+   "state": "off",
+   "code": null,
+   "rigol": [
+    {
+     "vavg": 0.2820736,
+     "vmax": 0.3,
+     "vmin": 0.26
+    },
+    {
+     "vavg": 0.2815385,
+     "vmax": 0.3,
+     "vmin": 0.26
+    },
+    {
+     "vavg": 0.281204,
+     "vmax": 0.3,
+     "vmin": 0.26
+    }
+   ]
+  },
+  {
+   "state": "dc",
+   "amp_dv": 0,
+   "code": 20,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.3035117,
+     "vmax": 0.32,
+     "vmin": 0.28
+    },
+    {
+     "vavg": 0.300602,
+     "vmax": 0.32,
+     "vmin": 0.28
+    },
+    {
+     "vavg": 0.2983278,
+     "vmax": 0.32,
+     "vmin": 0.28
+    }
+   ],
+   "vavg_mean": 0.30081383333333334
+  },
+  {
+   "state": "dc",
+   "amp_dv": 1,
+   "code": 144,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.3843143,
+     "vmax": 0.4,
+     "vmin": 0.38
+    },
+    {
+     "vavg": 0.3916054,
+     "vmax": 0.4,
+     "vmin": 0.38
+    },
+    {
+     "vavg": 0.3951505,
+     "vmax": 0.4,
+     "vmin": 0.38
+    }
+   ],
+   "vavg_mean": 0.3903567333333333
+  },
+  {
+   "state": "dc",
+   "amp_dv": 2,
+   "code": 268,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.4803345,
+     "vmax": 0.5,
+     "vmin": 0.48
+    },
+    {
+     "vavg": 0.4883612,
+     "vmax": 0.5,
+     "vmin": 0.48
+    },
+    {
+     "vavg": 0.4926755,
+     "vmax": 0.5,
+     "vmin": 0.48
+    }
+   ],
+   "vavg_mean": 0.4871237333333333
+  },
+  {
+   "state": "dc",
+   "amp_dv": 3,
+   "code": 392,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.5800334,
+     "vmax": 0.6,
+     "vmin": 0.56
+    },
+    {
+     "vavg": 0.5843812,
+     "vmax": 0.6,
+     "vmin": 0.58
+    },
+    {
+     "vavg": 0.5901672,
+     "vmax": 0.6,
+     "vmin": 0.58
+    }
+   ],
+   "vavg_mean": 0.5848606000000001
+  },
+  {
+   "state": "dc",
+   "amp_dv": 4,
+   "code": 516,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.6794314,
+     "vmax": 0.7,
+     "vmin": 0.66
+    },
+    {
+     "vavg": 0.6855183,
+     "vmax": 0.7,
+     "vmin": 0.66
+    },
+    {
+     "vavg": 0.6871907,
+     "vmax": 0.7,
+     "vmin": 0.68
+    }
+   ],
+   "vavg_mean": 0.6840468000000001
+  },
+  {
+   "state": "dc",
+   "amp_dv": 5,
+   "code": 640,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.7793646,
+     "vmax": 0.8,
+     "vmin": 0.76
+    },
+    {
+     "vavg": 0.7823077,
+     "vmax": 0.8,
+     "vmin": 0.76
+    },
+    {
+     "vavg": 0.783311,
+     "vmax": 0.8,
+     "vmin": 0.76
+    }
+   ],
+   "vavg_mean": 0.7816611
+  },
+  {
+   "state": "dc",
+   "amp_dv": 6,
+   "code": 764,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.8786287,
+     "vmax": 0.88,
+     "vmin": 0.86
+    },
+    {
+     "vavg": 0.8811705,
+     "vmax": 0.9,
+     "vmin": 0.86
+    },
+    {
+     "vavg": 0.8834448,
+     "vmax": 0.9,
+     "vmin": 0.86
+    }
+   ],
+   "vavg_mean": 0.8810813333333334
+  },
+  {
+   "state": "dc",
+   "amp_dv": 7,
+   "code": 888,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 0.9784616,
+     "vmax": 1,
+     "vmin": 0.96
+    },
+    {
+     "vavg": 0.9796989,
+     "vmax": 1,
+     "vmin": 0.96
+    },
+    {
+     "vavg": 0.9816388,
+     "vmax": 1,
+     "vmin": 0.96
+    }
+   ],
+   "vavg_mean": 0.9799331
+  },
+  {
+   "state": "dc",
+   "amp_dv": 8,
+   "code": 1012,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.077157,
+     "vmax": 1.08,
+     "vmin": 1.06
+    },
+    {
+     "vavg": 1.078896,
+     "vmax": 1.1,
+     "vmin": 1.06
+    },
+    {
+     "vavg": 1.080167,
+     "vmax": 1.1,
+     "vmin": 1.06
+    }
+   ],
+   "vavg_mean": 1.07874
+  },
+  {
+   "state": "dc",
+   "amp_dv": 9,
+   "code": 1136,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.166923,
+     "vmax": 1.18,
+     "vmin": 1.14
+    },
+    {
+     "vavg": 1.178562,
+     "vmax": 1.2,
+     "vmin": 1.16
+    },
+    {
+     "vavg": 1.179565,
+     "vmax": 1.2,
+     "vmin": 1.16
+    }
+   ],
+   "vavg_mean": 1.1750166666666666
+  },
+  {
+   "state": "dc",
+   "amp_dv": 10,
+   "code": 1260,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.274247,
+     "vmax": 1.28,
+     "vmin": 1.26
+    },
+    {
+     "vavg": 1.278562,
+     "vmax": 1.3,
+     "vmin": 1.26
+    },
+    {
+     "vavg": 1.278462,
+     "vmax": 1.3,
+     "vmin": 1.26
+    }
+   ],
+   "vavg_mean": 1.2770903333333332
+  },
+  {
+   "state": "dc",
+   "amp_dv": 11,
+   "code": 1385,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.362207,
+     "vmax": 1.38,
+     "vmin": 1.34
+    },
+    {
+     "vavg": 1.376053,
+     "vmax": 1.38,
+     "vmin": 1.36
+    },
+    {
+     "vavg": 1.377926,
+     "vmax": 1.38,
+     "vmin": 1.36
+    }
+   ],
+   "vavg_mean": 1.372062
+  },
+  {
+   "state": "dc",
+   "amp_dv": 12,
+   "code": 1509,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.46806,
+     "vmax": 1.48,
+     "vmin": 1.46
+    },
+    {
+     "vavg": 1.475251,
+     "vmax": 1.48,
+     "vmin": 1.46
+    },
+    {
+     "vavg": 1.476421,
+     "vmax": 1.48,
+     "vmin": 1.46
+    }
+   ],
+   "vavg_mean": 1.473244
+  },
+  {
+   "state": "dc",
+   "amp_dv": 13,
+   "code": 1633,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.560836,
+     "vmax": 1.58,
+     "vmin": 1.54
+    },
+    {
+     "vavg": 1.572809,
+     "vmax": 1.58,
+     "vmin": 1.56
+    },
+    {
+     "vavg": 1.574247,
+     "vmax": 1.58,
+     "vmin": 1.56
+    }
+   ],
+   "vavg_mean": 1.5692973333333333
+  },
+  {
+   "state": "dc",
+   "amp_dv": 14,
+   "code": 1757,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.659064,
+     "vmax": 1.68,
+     "vmin": 1.64
+    },
+    {
+     "vavg": 1.668696,
+     "vmax": 1.68,
+     "vmin": 1.64
+    },
+    {
+     "vavg": 1.671873,
+     "vmax": 1.68,
+     "vmin": 1.66
+    }
+   ],
+   "vavg_mean": 1.6665443333333334
+  },
+  {
+   "state": "dc",
+   "amp_dv": 15,
+   "code": 1881,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.759665,
+     "vmax": 1.78,
+     "vmin": 1.74
+    },
+    {
+     "vavg": 1.764548,
+     "vmax": 1.78,
+     "vmin": 1.74
+    },
+    {
+     "vavg": 1.770134,
+     "vmax": 1.78,
+     "vmin": 1.76
+    }
+   ],
+   "vavg_mean": 1.7647823333333335
+  },
+  {
+   "state": "dc",
+   "amp_dv": 16,
+   "code": 2005,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.859599,
+     "vmax": 1.88,
+     "vmin": 1.84
+    },
+    {
+     "vavg": 1.863311,
+     "vmax": 1.88,
+     "vmin": 1.84
+    },
+    {
+     "vavg": 1.867458,
+     "vmax": 1.88,
+     "vmin": 1.86
+    }
+   ],
+   "vavg_mean": 1.863456
+  },
+  {
+   "state": "dc",
+   "amp_dv": 17,
+   "code": 2129,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 1.95689,
+     "vmax": 1.96,
+     "vmin": 1.94
+    },
+    {
+     "vavg": 1.960569,
+     "vmax": 1.98,
+     "vmin": 1.94
+    },
+    {
+     "vavg": 1.963411,
+     "vmax": 1.98,
+     "vmin": 1.94
+    }
+   ],
+   "vavg_mean": 1.96029
+  },
+  {
+   "state": "dc",
+   "amp_dv": 18,
+   "code": 2253,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.05699,
+     "vmax": 2.08,
+     "vmin": 2.04
+    },
+    {
+     "vavg": 2.058963,
+     "vmax": 2.08,
+     "vmin": 2.04
+    },
+    {
+     "vavg": 2.061237,
+     "vmax": 2.08,
+     "vmin": 2.04
+    }
+   ],
+   "vavg_mean": 2.0590633333333335
+  },
+  {
+   "state": "dc",
+   "amp_dv": 19,
+   "code": 2377,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.154749,
+     "vmax": 2.16,
+     "vmin": 2.14
+    },
+    {
+     "vavg": 2.160033,
+     "vmax": 2.18,
+     "vmin": 2.14
+    },
+    {
+     "vavg": 2.161338,
+     "vmax": 2.18,
+     "vmin": 2.14
+    }
+   ],
+   "vavg_mean": 2.1587066666666668
+  },
+  {
+   "state": "dc",
+   "amp_dv": 20,
+   "code": 2501,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.251973,
+     "vmax": 2.26,
+     "vmin": 2.24
+    },
+    {
+     "vavg": 2.259063,
+     "vmax": 2.28,
+     "vmin": 2.24
+    },
+    {
+     "vavg": 2.259665,
+     "vmax": 2.28,
+     "vmin": 2.24
+    }
+   ],
+   "vavg_mean": 2.2569003333333333
+  },
+  {
+   "state": "dc",
+   "amp_dv": 21,
+   "code": 2625,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.352241,
+     "vmax": 2.36,
+     "vmin": 2.34
+    },
+    {
+     "vavg": 2.356923,
+     "vmax": 2.36,
+     "vmin": 2.34
+    },
+    {
+     "vavg": 2.358729,
+     "vmax": 2.38,
+     "vmin": 2.34
+    }
+   ],
+   "vavg_mean": 2.355964333333333
+  },
+  {
+   "state": "dc",
+   "amp_dv": 22,
+   "code": 2750,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.452642,
+     "vmax": 2.46,
+     "vmin": 2.44
+    },
+    {
+     "vavg": 2.456956,
+     "vmax": 2.48,
+     "vmin": 2.44
+    },
+    {
+     "vavg": 2.458127,
+     "vmax": 2.48,
+     "vmin": 2.44
+    }
+   ],
+   "vavg_mean": 2.4559083333333334
+  },
+  {
+   "state": "dc",
+   "amp_dv": 23,
+   "code": 2874,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.550201,
+     "vmax": 2.56,
+     "vmin": 2.54
+    },
+    {
+     "vavg": 2.555485,
+     "vmax": 2.58,
+     "vmin": 2.54
+    },
+    {
+     "vavg": 2.557358,
+     "vmax": 2.58,
+     "vmin": 2.54
+    }
+   ],
+   "vavg_mean": 2.554348
+  },
+  {
+   "state": "dc",
+   "amp_dv": 24,
+   "code": 2998,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.641204,
+     "vmax": 2.66,
+     "vmin": 2.62
+    },
+    {
+     "vavg": 2.654448,
+     "vmax": 2.66,
+     "vmin": 2.64
+    },
+    {
+     "vavg": 2.656388,
+     "vmax": 2.68,
+     "vmin": 2.64
+    }
+   ],
+   "vavg_mean": 2.65068
+  },
+  {
+   "state": "dc",
+   "amp_dv": 25,
+   "code": 3122,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.741171,
+     "vmax": 2.76,
+     "vmin": 2.72
+    },
+    {
+     "vavg": 2.74913,
+     "vmax": 2.76,
+     "vmin": 2.74
+    },
+    {
+     "vavg": 2.754314,
+     "vmax": 2.76,
+     "vmin": 2.74
+    }
+   ],
+   "vavg_mean": 2.748205
+  },
+  {
+   "state": "dc",
+   "amp_dv": 26,
+   "code": 3246,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.840435,
+     "vmax": 2.86,
+     "vmin": 2.82
+    },
+    {
+     "vavg": 2.847592,
+     "vmax": 2.86,
+     "vmin": 2.82
+    },
+    {
+     "vavg": 2.851538,
+     "vmax": 2.86,
+     "vmin": 2.84
+    }
+   ],
+   "vavg_mean": 2.846521666666667
+  },
+  {
+   "state": "dc",
+   "amp_dv": 27,
+   "code": 3370,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 2.939899,
+     "vmax": 2.96,
+     "vmin": 2.92
+    },
+    {
+     "vavg": 2.943043,
+     "vmax": 2.96,
+     "vmin": 2.92
+    },
+    {
+     "vavg": 2.94903,
+     "vmax": 2.96,
+     "vmin": 2.94
+    }
+   ],
+   "vavg_mean": 2.9439906666666666
+  },
+  {
+   "state": "dc",
+   "amp_dv": 28,
+   "code": 3494,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 3.039933,
+     "vmax": 3.06,
+     "vmin": 3.02
+    },
+    {
+     "vavg": 3.042977,
+     "vmax": 3.06,
+     "vmin": 3.02
+    },
+    {
+     "vavg": 3.046521,
+     "vmax": 3.06,
+     "vmin": 3.04
+    }
+   ],
+   "vavg_mean": 3.0431436666666665
+  },
+  {
+   "state": "dc",
+   "amp_dv": 29,
+   "code": 3618,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 3.137291,
+     "vmax": 3.14,
+     "vmin": 3.12
+    },
+    {
+     "vavg": 3.140702,
+     "vmax": 3.16,
+     "vmin": 3.12
+    },
+    {
+     "vavg": 3.144247,
+     "vmax": 3.16,
+     "vmin": 3.12
+    }
+   ],
+   "vavg_mean": 3.140746666666667
+  },
+  {
+   "state": "dc",
+   "amp_dv": 30,
+   "code": 3742,
+   "flat": true,
+   "rigol": [
+    {
+     "vavg": 3.239365,
+     "vmax": 3.26,
+     "vmin": 3.22
+    },
+    {
+     "vavg": 3.240134,
+     "vmax": 3.26,
+     "vmin": 3.22
+    },
+    {
+     "vavg": 3.243043,
+     "vmax": 3.26,
+     "vmin": 3.22
+    }
+   ],
+   "vavg_mean": 3.2408473333333334
+  }
+ ],
+ "fit": {
+  "volts_per_code": 0.0007916901528399056,
+  "intercept_v": 0.2768633906900413,
+  "implied_ref_v": 3.2419711758794136,
+  "r2": 0.9999950733429439,
+  "max_abs_residual_v": 0.008116639586493946
+ }
+}

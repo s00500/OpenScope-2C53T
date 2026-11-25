@@ -1,0 +1,506 @@
+[
+ {
+  "duty_set": 0,
+  "expect_from_cycle": 0.0,
+  "rigol": [
+   {
+    "freq": null,
+    "pduty": null,
+    "vmax": 0.32,
+    "vmin": 0.28
+   },
+   {
+    "freq": null,
+    "pduty": null,
+    "vmax": 0.32,
+    "vmin": 0.28
+   },
+   {
+    "freq": null,
+    "pduty": null,
+    "vmax": 0.32,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 5,
+  "expect_from_cycle": 0.05,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.048,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.048,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.048,
+    "vmax": 3.24,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 10,
+  "expect_from_cycle": 0.1,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.09999999,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.09999999,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.09999999,
+    "vmax": 3.24,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 15,
+  "expect_from_cycle": 0.15,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.148,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.148,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.148,
+    "vmax": 3.24,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 20,
+  "expect_from_cycle": 0.2,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.2,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.2,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.2,
+    "vmax": 3.24,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 25,
+  "expect_from_cycle": 0.25,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.248,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.248,
+    "vmax": 3.24,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.248,
+    "vmax": 3.24,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 30,
+  "expect_from_cycle": 0.3,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.3,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.3,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.3,
+    "vmax": 3.24,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 35,
+  "expect_from_cycle": 0.35,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.348,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.348,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.348,
+    "vmax": 3.24,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 40,
+  "expect_from_cycle": 0.4,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.4,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.4,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.4,
+    "vmax": 3.26,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 45,
+  "expect_from_cycle": 0.45,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.448,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.448,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.448,
+    "vmax": 3.26,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 50,
+  "expect_from_cycle": 0.5,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.5,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.5,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.5,
+    "vmax": 3.26,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 55,
+  "expect_from_cycle": 0.55,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.548,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.548,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.548,
+    "vmax": 3.26,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 60,
+  "expect_from_cycle": 0.6,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.6,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.6,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.6,
+    "vmax": 3.26,
+    "vmin": 0.28
+   }
+  ]
+ },
+ {
+  "duty_set": 65,
+  "expect_from_cycle": 0.65,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.6479999,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.6479999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.6479999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   }
+  ]
+ },
+ {
+  "duty_set": 70,
+  "expect_from_cycle": 0.7,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.6999999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.6999999,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.6999999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   }
+  ]
+ },
+ {
+  "duty_set": 75,
+  "expect_from_cycle": 0.75,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.748,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.748,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.748,
+    "vmax": 3.26,
+    "vmin": 0.3
+   }
+  ]
+ },
+ {
+  "duty_set": 80,
+  "expect_from_cycle": 0.8,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.8,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.8,
+    "vmax": 3.26,
+    "vmin": 0.28
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.8,
+    "vmax": 3.26,
+    "vmin": 0.3
+   }
+  ]
+ },
+ {
+  "duty_set": 85,
+  "expect_from_cycle": 0.85,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.8479999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.8479999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.8479999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   }
+  ]
+ },
+ {
+  "duty_set": 90,
+  "expect_from_cycle": 0.9,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.8999999,
+    "vmax": 3.28,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.8999999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.8999999,
+    "vmax": 3.26,
+    "vmin": 0.3
+   }
+  ]
+ },
+ {
+  "duty_set": 95,
+  "expect_from_cycle": 0.95,
+  "rigol": [
+   {
+    "freq": 999.9999,
+    "pduty": 0.948,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.948,
+    "vmax": 3.26,
+    "vmin": 0.3
+   },
+   {
+    "freq": 999.9999,
+    "pduty": 0.948,
+    "vmax": 3.26,
+    "vmin": 0.3
+   }
+  ]
+ },
+ {
+  "duty_set": 100,
+  "expect_from_cycle": 1.0,
+  "rigol": [
+   {
+    "freq": null,
+    "pduty": null,
+    "vmax": 3.28,
+    "vmin": 3.24
+   },
+   {
+    "freq": null,
+    "pduty": null,
+    "vmax": 3.26,
+    "vmin": 3.24
+   },
+   {
+    "freq": null,
+    "pduty": null,
+    "vmax": 3.28,
+    "vmin": 3.24
+   }
+  ]
+ }
+]
