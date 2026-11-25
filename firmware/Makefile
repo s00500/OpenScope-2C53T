@@ -35,6 +35,8 @@ C_SOURCES += src/drivers/lcd.c
 C_SOURCES += src/ui/status_bar.c
 C_SOURCES += src/ui/scope_ui.c
 C_SOURCES += src/ui/meter_ui.c
+C_SOURCES += src/ui/softkey.c
+C_SOURCES += src/ui/fuse_model.c
 C_SOURCES += src/ui/siggen_ui.c
 C_SOURCES += src/ui/settings_ui.c
 C_SOURCES += src/ui/component_ui.c
@@ -102,6 +104,8 @@ C_SOURCES += src/fonts/font_small.c
 C_SOURCES += src/fonts/font_medium.c
 C_SOURCES += src/fonts/font_large.c
 C_SOURCES += src/fonts/font_xlarge.c
+C_SOURCES += src/fonts/font_huge.c
+C_SOURCES += src/fonts/font_unit.c
 
 # FFT / DSP module
 ifneq ($(findstring FFT,$(FEATURES)),)
@@ -618,22 +622,36 @@ test-scope-freq: $(BUILD_DIR)/test_scope_freq
 	./$<
 
 # Settings persistence: config.c + settings_store.c against a NOR flash model
-# (erase sets 0xFF, program only clears bits, page programs cannot cross a page).
+# (erase sets 0xFF, program only clears bits, page programs cannot cross a page),
+# with power cuts injected into the real write path.
 # Proves the round trip, the fallbacks (first boot / torn record / bad checksum /
-# foreign version), and — the one that matters — that the settings writer cannot
-# reach a read-only region. See tests/test_config_persist.c.
-$(BUILD_DIR)/test_config_persist: tests/test_config_persist.c src/util/config.c src/util/config.h \
-                                  src/util/settings_store.c src/util/settings_store.h \
-                                  src/drivers/flash_regions.c src/drivers/flash_regions.h \
-                                  src/ui/theme.c src/ui/scope_state.c \
-                                  src/ui/scope_cal.c src/ui/scope_timebase.c | $(BUILD_DIR)
-	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -O1 -DSETTINGS_PERSIST_WRITES=1 \
-		-Isrc/util -Isrc/drivers -Isrc/ui -Isrc/dsp \
-		$< src/util/config.c src/util/settings_store.c src/drivers/flash_regions.c \
-		src/ui/theme.c src/ui/scope_state.c src/ui/scope_cal.c src/ui/scope_timebase.c -o $@
+# foreign version / damage anywhere in the log), a change -> power cycle ->
+# verify loop across compaction, and — the one that matters — that the settings
+# writer cannot reach a read-only region. See tests/test_config_persist.c.
+#
+# The same file is built two ways:
+#   test_config_persist                SETTINGS_PERSIST_WRITES=1, must pass
+#   test_config_persist_nowrite        SETTINGS_PERSIST_WRITES=0, the negative
+#                                      control: the change/cycle/verify loop must
+#                                      FAIL to persist (spec settings-persistence S3)
+# (A third, known-defects build held the #57/#58 power-cut tests until those
+# were fixed; they run in test_config_persist now.)
+CONFIG_PERSIST_SRCS = src/util/config.c src/util/settings_store.c src/drivers/flash_regions.c \
+                      src/ui/theme.c src/ui/scope_state.c src/ui/scope_cal.c src/ui/scope_timebase.c
+CONFIG_PERSIST_DEPS = tests/test_config_persist.c $(CONFIG_PERSIST_SRCS) \
+                      src/util/config.h src/util/settings_store.h src/drivers/flash_regions.h
+CONFIG_PERSIST_CC   = $(HOST_CC) -std=c11 -Wall -Wextra -Werror -O1 \
+                      -Isrc/util -Isrc/drivers -Isrc/ui -Isrc/dsp
 
-test-config-persist: $(BUILD_DIR)/test_config_persist
-	$<
+$(BUILD_DIR)/test_config_persist: $(CONFIG_PERSIST_DEPS) | $(BUILD_DIR)
+	$(CONFIG_PERSIST_CC) -DSETTINGS_PERSIST_WRITES=1 $< $(CONFIG_PERSIST_SRCS) -o $@
+
+$(BUILD_DIR)/test_config_persist_nowrite: $(CONFIG_PERSIST_DEPS) | $(BUILD_DIR)
+	$(CONFIG_PERSIST_CC) -DSETTINGS_PERSIST_WRITES=0 $< $(CONFIG_PERSIST_SRCS) -o $@
+
+test-config-persist: $(BUILD_DIR)/test_config_persist $(BUILD_DIR)/test_config_persist_nowrite
+	$(BUILD_DIR)/test_config_persist
+	$(BUILD_DIR)/test_config_persist_nowrite
 
 test-stock-meter-literals:
 	python3 ../scripts/test_stock_meter_literals.py
@@ -661,6 +679,14 @@ $(BUILD_DIR)/test_fft_live: tests/test_fft_live.c src/dsp/fft_live.c src/dsp/fft
 test-fft-live: $(BUILD_DIR)/test_fft_live
 	$<
 
+$(BUILD_DIR)/test_fuse: tests/test_fuse.c src/ui/fuse_model.c src/ui/fuse_model.h src/ui/fuse_table.h | $(BUILD_DIR)
+	$(HOST_CC) -std=gnu11 -Wall -Wextra -Werror -Isrc/ui $< src/ui/fuse_model.c -lm -o $@
+
+# Fuse tester arithmetic, colours and shapes. Keeps the pre-2026-10-06 current
+# formula (amps printed as mA) as a negative control that must fail.
+test-fuse: $(BUILD_DIR)/test_fuse
+	$<
+
 # MCU-side trigger edge filter (trigger-modes S2 (c)): real EXP-55/56 records,
 # a level-off-the-signal negative control, and a synthetic period sweep.
 $(BUILD_DIR)/test_trig_edge: tests/test_trig_edge.c src/dsp/trig_edge.c src/dsp/trig_edge.h \
@@ -683,7 +709,31 @@ $(BUILD_DIR)/test_mask_pf: tests/test_mask_pf.c src/dsp/mask_pf.c src/dsp/mask_p
 test-mask-pf: $(BUILD_DIR)/test_mask_pf
 	$<
 
-.PHONY: all clean disasm size renode soak-test soak-quick flash flash-dfu bootloader flash-bootloader flash-all guest guest-warmtest guest-usart-silent emu test-meter-data test-meter-auto test-meter-voltage-wave test-fpga-meter-plan test-stock-meter-literals test-meter test-scope-measure test-scope-cal test-scope-timebase test-scope-freq test-redraw-gate test-fft-live test-trig-edge test-mask-pf test-config-persist guest-persist guest-caldump guest-coldtrace-slow guest-coldtrace-la guest-debugclk guest-configA-gap guest-configA-csdummy guest-configA-gapless guest-bringup guest-bringup-bb guest-bringup-bb-slow guest-coldtrace-hwspi guest-bringup-bb-faithful fpga-alt-header guest-coldtrace-meter
+.PHONY: all clean disasm size renode soak-test soak-quick flash flash-dfu bootloader flash-bootloader flash-all guest guest-warmtest guest-usart-silent emu test-meter-data test-meter-auto test-meter-voltage-wave test-fpga-meter-plan test-stock-meter-literals test-meter test-scope-measure test-scope-cal test-scope-timebase test-scope-freq test-redraw-gate test-fft-live test-trig-edge test-mask-pf test-fuse test-config-persist guest-persist guest-caldump guest-coldtrace-slow guest-coldtrace-la guest-debugclk guest-configA-gap guest-configA-csdummy guest-configA-gapless guest-bringup guest-bringup-bb guest-bringup-bb-slow guest-coldtrace-hwspi guest-bringup-bb-faithful fpga-alt-header guest-coldtrace-meter test-bode test-shmem-layout
+
+# Bode sweep maths (step frequency, gain/phase, -3 dB bandwidth) and
+# bode_init(), which since the 2026-11-11 RAM diet fills a caller-owned result
+# instead of a dead 2.4 KB module copy.
+$(BUILD_DIR)/test_bode: tests/test_bode_mask.c src/dsp/bode.c src/dsp/bode.h | $(BUILD_DIR)
+	$(HOST_CC) -std=gnu11 -O1 -Wall -Wextra -Werror -DTEST_BUILD -Isrc/dsp $< src/dsp/bode.c -lm -o $@
+
+.PHONY: test-bode
+test-bode: $(BUILD_DIR)/test_bode
+	$<
+
+# Shared pool sizing: built for the host (radix-2) layout AND for the
+# USE_CMSIS_DSP layout every firmware image links, so both pool sizes and the
+# waterfall offset are pinned (RAM diet, 2026-11-11).
+$(BUILD_DIR)/test_shmem_layout: tests/test_shmem_layout.c src/dsp/shared_mem.c src/dsp/shared_mem.h src/dsp/fft.h | $(BUILD_DIR)
+	$(HOST_CC) -std=gnu11 -O1 -Wall -Wextra -Werror -Isrc/dsp $< src/dsp/shared_mem.c -o $@
+$(BUILD_DIR)/test_shmem_layout_cmsis: tests/test_shmem_layout.c src/dsp/shared_mem.c src/dsp/shared_mem.h src/dsp/fft.h | $(BUILD_DIR)
+	$(HOST_CC) -std=gnu11 -O1 -Wall -Wextra -Werror -DUSE_CMSIS_DSP -Isrc/dsp $< src/dsp/shared_mem.c -o $@
+
+.PHONY: test-shmem-layout
+test-shmem-layout: $(BUILD_DIR)/test_shmem_layout $(BUILD_DIR)/test_shmem_layout_cmsis
+	$(BUILD_DIR)/test_shmem_layout
+	$(BUILD_DIR)/test_shmem_layout_cmsis
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # BENCH / EXPERIMENT IMAGE INDEX                          (index added 2026-08-13)
