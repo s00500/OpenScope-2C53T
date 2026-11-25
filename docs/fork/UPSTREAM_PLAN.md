@@ -34,6 +34,7 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 | 0d97f93 | remote: `sg.*` keys follow the DAC2 generator (0.1 V amplitude, integer Hz, offset read-only, 13 waves) | `test_remote_proto` 203 checks; CLI params test | no: stacked on #41 / #47 (M6) | with M6 |
 | 392ff97 | chore: ignore `.scratchpad/` and `.playwright-mcp/` | none needed | yes | trivial; fold into any PR that wants it |
 | d11f69c | exp(79): the generator against a Rigol DS1104Z | EXP-79 file + `reverse_engineering/captures/exp79/` | yes | evidence for #68; offer as a comment with the user's approval |
+| 64dc401 | fix(siggen): bottom bar shows the live generator state; the screen stays above the bar | screenshots on my unit (output on/off, remote change repaints the bar) | not checked; status_bar.c on main is the same code, main.c context may differ | candidate, after the DAC2 generator lands (it uses its API) |
 
 ## How to cut an upstream PR
 
