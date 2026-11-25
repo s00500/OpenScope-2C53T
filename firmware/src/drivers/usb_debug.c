@@ -2599,6 +2599,21 @@ static void cmd_fpga_postedge(const char *args)
                      fpga_acq_rate_idx_get());
 }
 
+/* `fpga parkwake [on|off]` (EXP-76): whether the acq task's post-edge and
+ * poll sleeps wake for a park request. Off = the historical plain delay,
+ * under which a setting change inside a long sleep (0x13/0x14) is refused. */
+static void cmd_fpga_parkwake(const char *args)
+{
+    while (*args == ' ') args++;
+    if (*args) {
+        if      (strncmp(args, "on",  2) == 0) fpga_acq_park_wake_set(true);
+        else if (strncmp(args, "off", 3) == 0) fpga_acq_park_wake_set(false);
+        else { usb_send_str("usage: fpga parkwake [on|off]\r\n"); return; }
+    }
+    usb_debug_printf("acq park wake %s (poll start now %u ms after a handover)\r\n",
+                     fpga_acq_park_wake_get() ? "ON" : "OFF", (unsigned)fpga_acq_post_edge_get());
+}
+
 /* `fpga pollgap [ms]` — poll cadence after the poll start (EXP-54). */
 static void cmd_fpga_pollgap(const char *args)
 {
@@ -8141,6 +8156,8 @@ static const shell_cmd_t shell_cmds[] = {
           "settings                        Persistence status: bound, load result, writes, failures\r\n"),
     CMD_A("fpga postedge", cmd_fpga_postedge, 0,
           "fpga postedge [ms]              Poll start after a handover, ms (EXP-54; derived fill + 100)\r\n"),
+    CMD_A("fpga parkwake", cmd_fpga_parkwake, 0,
+          "fpga parkwake [on|off]          Acq sleeps wake for a setting change (EXP-76, default on)\r\n"),
     CMD_A("fpga scope hpos", cmd_fpga_scope_hpos, 0,
           "fpga scope hpos [8..312]        Screen column of the trigger point (default 160)\r\n"),
     CMD_A("fpga scope coupling", cmd_fpga_scope_coupling, 0,

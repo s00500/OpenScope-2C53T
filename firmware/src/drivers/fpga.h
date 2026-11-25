@@ -1117,6 +1117,9 @@ void     fpga_acq_pair_gap_set(uint16_t ms);
 void     fpga_acq_post_edge_set(uint16_t ms);
 uint16_t fpga_acq_post_edge_get(void);
 bool     fpga_acq_post_edge_is_override(void);
+/* EXP-76: the acq task's sleeps wake for a park request (default on). */
+void     fpga_acq_park_wake_set(bool on);
+bool     fpga_acq_park_wake_get(void);
 /* EXP-50: delay from the PC0 edge to the read of the HELD record (committed),
  * derived fill + 30 ms; the arming read follows at fpga_acq_post_edge_get(). */
 void     fpga_acq_poll_gap_set(uint16_t ms);   /* EXP-54: poll cadence, ms (0 -> 30) */

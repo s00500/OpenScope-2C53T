@@ -3498,6 +3498,13 @@ static volatile uint8_t acq_trig_code = 0xAD;
  * stayed frozen after level +100 -> 0). The apply entry points raise this;
  * the acq task clears capture_in_flight on it and re-primes. */
 static volatile bool acq_reprime_req = false;
+/* EXP-76 (2026-11-25): the post-edge sleep after a re-prime is one fill +
+ * 100 ms (2147 ms at 0x14, 919 ms at 0x13), the park point is only at the
+ * loop top, and fpga_acq_pause() gives up after 1 s, so a setting change
+ * that landed inside that sleep was refused (HW_REFUSED / "H=... NOT SET").
+ * With this on, the task's sleeps wake for a pause request and go straight
+ * to the park point instead of reading. `fpga parkwake on|off`. */
+static volatile bool acq_park_wake = true;
 /* EXP-45 (2026-09-14): gap between the 0x04 and 0x05 reads of a pair. Shell
  * reads 50 ms apart each produce a PC0 edge; the task's back-to-back pair
  * (~140 us apart at /2) produces none, which is why NORMAL could not sustain
@@ -3655,6 +3662,8 @@ uint16_t fpga_acq_post_edge_get(void)
     return (uint16_t)ms;
 }
 bool fpga_acq_post_edge_is_override(void) { return acq_post_edge_ms != 0; }
+void fpga_acq_park_wake_set(bool on)       { acq_park_wake = on; }
+bool fpga_acq_park_wake_get(void)          { return acq_park_wake; }
 /* EXP-48/49 (2026-09-14): from the edge until the bracket ends the FPGA holds
  * the completed record and ignores reads as arms, so the record can be read
  * (and committed) at edge + fill + margin instead of at the bracket's end;
@@ -3916,6 +3925,27 @@ static uint8_t fpga_warmtest_read_channel(uint8_t opcode, volatile uint8_t *buf)
     return s0;
 }
 
+/* Sleep up to ms. With acq_park_wake, wake in <= 10 ms slices to check for
+ * a park request and return true if one arrived, so the caller goes back to
+ * the park point instead of starting a read. Without it, the historical
+ * plain delay (and false: the caller reads, the loop top parks after). */
+static bool acq_sleep_parkable(uint32_t ms)
+{
+    if (!acq_park_wake) {
+        vTaskDelay(pdMS_TO_TICKS(ms));
+        return false;
+    }
+    const TickType_t end = xTaskGetTickCount() + pdMS_TO_TICKS(ms);
+    for (;;) {
+        if (acq_pause_req)
+            return true;
+        const int32_t left = (int32_t)(end - xTaskGetTickCount());
+        if (left <= 0)
+            return false;
+        vTaskDelay(left > (int32_t)pdMS_TO_TICKS(10) ? pdMS_TO_TICKS(10) : (TickType_t)left);
+    }
+}
+
 static void fpga_warmtest_acq_task(void *pv)
 {
     (void)pv;
@@ -4031,12 +4061,13 @@ static void fpga_warmtest_acq_task(void *pv)
             if ((int32_t)(earliest - now) > 0) {
                 uint32_t d = earliest - now;
                 if (d > 5000u) d = 5000u;
-                vTaskDelay(pdMS_TO_TICKS(d));
+                if (acq_sleep_parkable(d))
+                    continue;                  /* a setting change wants the bus */
                 now = xTaskGetTickCount();
             }
             uint32_t next_poll = last_read_tick + acq_poll_gap_ms;
-            if ((int32_t)(next_poll - now) > 0)
-                vTaskDelay(pdMS_TO_TICKS(next_poll - now));
+            if ((int32_t)(next_poll - now) > 0 && acq_sleep_parkable(next_poll - now))
+                continue;
         }
         if (acq_read_br != 0xFF)
             spi3_set_br(acq_read_br);                       /* EXP-46 (b) */
