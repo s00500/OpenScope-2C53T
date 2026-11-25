@@ -83,7 +83,17 @@ values). Predicate host-tested with the bench values (`test_display_trace`).
 | boot, no fault | 17 checks, 0 recoveries |
 | `lcd sleep` (0x08, MADCTL kept) | screen restored within 0.6 s: 0x9C, recoveries 1, last found 0x08 / 0xA0 |
 | 5 s after, no fault | 59 checks, still 1 recovery (no false positives) |
-| physical UP press | **pending** (expect recoveries +1, last found 0x08 / 0x00) |
+| physical UP presses (user: "goes white every time ... and indeed recovers") | recoveries 8 after ~9.5 min (1 was `lcd sleep`); last found **0x0C / 0xA0**: asleep but display on and MADCTL set, i.e. an earlier recovery's SLPOUT was ignored (the ST7789 refuses SLPOUT for 120 ms after a reset) and the next check finished the job. So a press costs up to two recoveries, ~0.75 s of white. |
+
+**A/B against the user's previous firmware.** The user reported it "did not
+happen previously". The reference was `fix/continuity-pc3-beep` @ 9d1d135
+(upstream main + EXP-74 continuity beep), built as `guest-coldtrace` (build
+22:24:34, 650,984 B), flashed over CDC: **it goes white on a physical UP press
+too.** So none of this session's commits (M6, display trace, parkwake, vertical
+map, panel readback) causes it. Next reference: the v0.4.1 release image
+(`openscope-2c53t-v0.4.1-coldtrace.bin`, sha256 87d76d34..., matches the
+release SHA256SUMS; installer passes the #42 check, so the CDC round trip is
+safe).
 
 ## 6. Blind spots
 
