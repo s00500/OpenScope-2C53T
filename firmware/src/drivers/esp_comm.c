@@ -822,6 +822,7 @@ static const struct { uint8_t key, type, rw; } key_table[] = {
     { ESP_KEY_SG_OFFSET,      ESP_VT_F32, KEY_RO },   /* always 0: stock's generator has no offset */
     { ESP_KEY_SG_DUTY,        ESP_VT_U8,  KEY_RW },
     { ESP_KEY_SG_OUTPUT,      ESP_VT_U8,  KEY_RW },
+    { ESP_KEY_SG_FREQ_ACTUAL, ESP_VT_F32, KEY_RO },
 };
 
 uint8_t esp_comm_vtype_size(uint8_t type)

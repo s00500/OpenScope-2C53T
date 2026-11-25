@@ -348,6 +348,7 @@ typedef esp_wave_result_t (*esp_wave_fn)(uint8_t channel_mask, esp_wave_snapshot
 #define ESP_KEY_SG_OFFSET       0x43    /* f32 RO always 0: the output spans 0..amplitude */
 #define ESP_KEY_SG_DUTY         0x44    /* u8     % 0..100 (Square and Sawtooth only) */
 #define ESP_KEY_SG_OUTPUT       0x45    /* u8     bool */
+#define ESP_KEY_SG_FREQ_ACTUAL  0x46    /* f32 RO Hz TMR7 really produces (quantised); 0 while off */
 
 /* Actions (ACTION payload [u8 action][u8 arg]). */
 #define ESP_ACT_METER_RESET     0x01    /* clear min/max/avg; arg 0 */

@@ -219,6 +219,11 @@ void remote_state(esp_state_writer_t *w)
     esp_state_put_f32(w, ESP_KEY_SG_OFFSET, 0.0f);
     esp_state_put_int(w, ESP_KEY_SG_DUTY,   (int32_t)sg->duty_pct);
     esp_state_put_int(w, ESP_KEY_SG_OUTPUT, sg->output_enabled ? 1 : 0);
+    /* What TMR7 really produces; EXP-79 found it exact against a Rigol's
+     * counter (to the crystal offset), so a host can use it as the truth. */
+    siggen_timing_t sgt;
+    esp_state_put_f32(w, ESP_KEY_SG_FREQ_ACTUAL,
+                      siggen_get_timing(&sgt) ? (float)sgt.actual_mhz / 1000.0f : 0.0f);
 }
 
 /* ─── input-task side ─────────────────────────────────────────────── */

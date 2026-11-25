@@ -1034,6 +1034,8 @@ static void test_key_table_contract(void)
     }
     CHECK(esp_comm_key_info(ESP_KEY_TRIG_LEVEL, &type, &rw) && rw && type == ESP_VT_I16, "trig.level i16 RW");
     CHECK(esp_comm_key_info(ESP_KEY_SG_FREQ, &type, &rw) && rw && type == ESP_VT_F32, "sg.freq f32 RW");
+    CHECK(esp_comm_key_info(ESP_KEY_SG_OFFSET, &type, &rw) && !rw && type == ESP_VT_F32, "sg.offset f32 RO");
+    CHECK(esp_comm_key_info(ESP_KEY_SG_FREQ_ACTUAL, &type, &rw) && !rw && type == ESP_VT_F32, "sg.freq.actual f32 RO");
     CHECK(!esp_comm_key_info(0x00, 0, 0) && !esp_comm_key_info(0xFF, 0, 0), "0x00 and 0xFF are not keys");
     CHECK(esp_comm_vtype_size(ESP_VT_U8) == 1 && esp_comm_vtype_size(ESP_VT_I16) == 2 &&
           esp_comm_vtype_size(ESP_VT_U16) == 2 && esp_comm_vtype_size(ESP_VT_U32) == 4 &&

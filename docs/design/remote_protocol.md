@@ -580,8 +580,9 @@ Lorentz); `sg.freq` is rounded to whole hertz and held at 1..50000 (stock's 0 Hz
 `sg.output`'s job here); `sg.amp` is the peak level in 0.1 V steps, 0..3.0, and the output spans
 0..amp; `sg.offset` is read-only and always 0, since that generator has no offset; `sg.duty` is
 0..100 and only Square and Sawtooth use it. The wire types are unchanged, so an older host still
-parses the reply, but its waveform names are the old eight and are wrong for this firmware. The
-real output frequency (TMR7's quantisation) is not a key yet; the shell's `siggen` prints it.
+parses the reply, but its waveform names are the old eight and are wrong for this firmware.
+`sg.freq.actual` (key `0x46`, f32, read-only) is the frequency TMR7 really produces after
+quantisation, 0 while the output is off; EXP-79 found it exact against a Rigol's counter.
 
 ### 10.3 Tests
 
