@@ -341,13 +341,13 @@ typedef esp_wave_result_t (*esp_wave_fn)(uint8_t channel_mask, esp_wave_snapshot
 #define ESP_KEY_METER_REL       0x32    /* u8     bool relative mode */
 #define ESP_KEY_METER_HOLD      0x33    /* u8     bool hold */
 
-#define ESP_KEY_SG_WAVE         0x40    /* u8     siggen_waveform_t 0..7 */
-#define ESP_KEY_SG_FREQ         0x41    /* f32    Hz (firmware clamps 0.1..25000) */
-#define ESP_KEY_SG_AMP          0x42    /* f32    Vpp (firmware clamps 0..3.3) */
-#define ESP_KEY_SG_OFFSET       0x43    /* f32    V (firmware clamps -1.65..1.65) */
-#define ESP_KEY_SG_DUTY         0x44    /* u8     % (firmware clamps 10..90) */
-#define ESP_KEY_SG_OUTPUT       0x45    /* u8     bool; reads back 0 in builds where the output
-                                         *        is held inert (DAC1 is the scope reference) */
+/* The generator is stock's (DAC2/PA5 + TMR7 + DMA2 ch4, siggen_wave.h). */
+#define ESP_KEY_SG_WAVE         0x40    /* u8     siggen_waveform_t 0..12, stock order */
+#define ESP_KEY_SG_FREQ         0x41    /* f32    Hz, rounded to an integer, clamped 1..50000 */
+#define ESP_KEY_SG_AMP          0x42    /* f32    V, rounded to 0.1 V, clamped 0..3.0 */
+#define ESP_KEY_SG_OFFSET       0x43    /* f32 RO always 0: the output spans 0..amplitude */
+#define ESP_KEY_SG_DUTY         0x44    /* u8     % 0..100 (Square and Sawtooth only) */
+#define ESP_KEY_SG_OUTPUT       0x45    /* u8     bool */
 
 /* Actions (ACTION payload [u8 action][u8 arg]). */
 #define ESP_ACT_METER_RESET     0x01    /* clear min/max/avg; arg 0 */

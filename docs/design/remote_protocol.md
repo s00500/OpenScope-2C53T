@@ -530,7 +530,7 @@ never sent as a guess. The key table, with types and read-only flags, is in `esp
 read that one table.
 
 Replying to a write with the whole state read back is deliberate: the host shows what the device
-did (a clamped frequency, an inert siggen output in a coldtrace build) rather than what it asked.
+did (a clamped frequency, an amplitude rounded to 0.1 V) rather than what it asked.
 
 New NAK codes: `HW_REFUSED 0x0E` (an `fpga_apply_*` returned false, or a relay readback
 disagreed), `UNKNOWN_KEY 0x0F`, `READ_ONLY 0x10`, `OUTCOME_UNKNOWN 0x11`.
@@ -571,9 +571,17 @@ Rules, mirroring the buttons:
 Refactors that came with it, so the remote path reuses the button code instead of copying it:
 `input_enter_mode()` (MENU's entry), `input_apply_coupling()`, `input_set_persist()`,
 `input_set_scope_view()` (PRM's FFT pool lifecycle), `input_settings_tick()`,
-`meter_function_select()`, `meter_layout_select()`. Two siggen bugs surfaced and were fixed:
-`siggen_cycle_waveform()` and `siggen_set_duty_cycle()` never refreshed the DAC, so the live
-output kept the old shape; `siggen_set_offset()` is now clamped to ±1.65 V.
+`meter_function_select()`, `meter_layout_select()`.
+
+The generator keys follow stock's generator (DAC2/PA5 + TMR7 + DMA2 ch4, `siggen_wave.h`), which
+replaced the old DAC1 driver: `sg.wave` is 0..12 in stock's order (sine, square, sawtooth,
+half wave, full wave, step, reverse step, exp rise, exp fall, DC, multi-tone, sinc pulse,
+Lorentz); `sg.freq` is rounded to whole hertz and held at 1..50000 (stock's 0 Hz "off" is
+`sg.output`'s job here); `sg.amp` is the peak level in 0.1 V steps, 0..3.0, and the output spans
+0..amp; `sg.offset` is read-only and always 0, since that generator has no offset; `sg.duty` is
+0..100 and only Square and Sawtooth use it. The wire types are unchanged, so an older host still
+parses the reply, but its waveform names are the old eight and are wrong for this firmware. The
+real output frequency (TMR7's quantisation) is not a key yet; the shell's `siggen` prints it.
 
 ### 10.3 Tests
 

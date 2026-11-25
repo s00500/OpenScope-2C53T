@@ -210,11 +210,14 @@ void remote_state(esp_state_writer_t *w)
     esp_state_put_int(w, ESP_KEY_METER_REL,      meter_rel_enabled ? 1 : 0);
     esp_state_put_int(w, ESP_KEY_METER_HOLD,     meter_hold_enabled ? 1 : 0);
 
+    /* The generator is stock's (DAC2/PA5, TMR7, DMA2 ch4): integer hertz,
+     * amplitude in 0.1 V steps, no offset (its output is 0..amplitude). The
+     * wire types are kept so older hosts still parse the reply. */
     esp_state_put_int(w, ESP_KEY_SG_WAVE,   (int32_t)sg->waveform);
-    esp_state_put_f32(w, ESP_KEY_SG_FREQ,   sg->frequency_hz);
-    esp_state_put_f32(w, ESP_KEY_SG_AMP,    sg->amplitude_vpp);
-    esp_state_put_f32(w, ESP_KEY_SG_OFFSET, sg->offset_v);
-    esp_state_put_int(w, ESP_KEY_SG_DUTY,   (int32_t)sg->duty_cycle_pct);
+    esp_state_put_f32(w, ESP_KEY_SG_FREQ,   (float)sg->frequency_hz);
+    esp_state_put_f32(w, ESP_KEY_SG_AMP,    (float)sg->amplitude_dv / 10.0f);
+    esp_state_put_f32(w, ESP_KEY_SG_OFFSET, 0.0f);
+    esp_state_put_int(w, ESP_KEY_SG_DUTY,   (int32_t)sg->duty_pct);
     esp_state_put_int(w, ESP_KEY_SG_OUTPUT, sg->output_enabled ? 1 : 0);
 }
 
@@ -392,23 +395,38 @@ static esp_apply_result_t apply_param(uint8_t key, const esp_value_t *v)
         switch (key) {
         case ESP_KEY_SG_WAVE:
             if (!in_range(i, 0, SIGGEN_WAVEFORM_COUNT - 1)) return ESP_APPLY_BAD_ARG;
-            siggen_set_waveform((siggen_waveform_t)i);
+            siggen_set_waveform((uint8_t)i);
             return ESP_APPLY_OK;
-        /* Out-of-range floats are clamped by the setters, like the buttons'
-         * presets; the STATE reply shows the value that took. */
-        case ESP_KEY_SG_FREQ:   siggen_set_frequency(v->f); return ESP_APPLY_OK;
-        case ESP_KEY_SG_AMP:    siggen_set_amplitude(v->f); return ESP_APPLY_OK;
-        case ESP_KEY_SG_OFFSET: siggen_set_offset(v->f);    return ESP_APPLY_OK;
+        /* Out-of-range floats are clamped, like the buttons' presets; the
+         * STATE reply shows the value that took. Frequency is held at 1 Hz
+         * or more here: stock's 0 Hz means "output off", and over the wire
+         * that is sg.output's job. */
+        case ESP_KEY_SG_FREQ: {
+            float f = v->f;
+            if (f < 1.0f) f = 1.0f;
+            if (f > (float)SIGGEN_FREQ_MAX_HZ) f = (float)SIGGEN_FREQ_MAX_HZ;
+            siggen_set_frequency((uint32_t)(f + 0.5f));
+            return ESP_APPLY_OK;
+        }
+        case ESP_KEY_SG_AMP: {
+            float dv = v->f * 10.0f;
+            if (dv < 0.0f) dv = 0.0f;
+            if (dv > (float)SIGGEN_AMP_MAX_DV) dv = (float)SIGGEN_AMP_MAX_DV;
+            siggen_set_amplitude_dv((uint8_t)(dv + 0.5f));
+            return ESP_APPLY_OK;
+        }
         case ESP_KEY_SG_DUTY:
-            if (!in_range(i, 0, 100)) return ESP_APPLY_BAD_ARG;
-            siggen_set_duty_cycle((uint8_t)i);
+            if (!in_range(i, 0, (int32_t)SIGGEN_DUTY_MAX)) return ESP_APPLY_BAD_ARG;
+            siggen_set_duty((uint8_t)i);
             return ESP_APPLY_OK;
-        default: /* ESP_KEY_SG_OUTPUT */
+        case ESP_KEY_SG_OUTPUT:
             if (!is_bool(i)) return ESP_APPLY_BAD_ARG;
-            /* Inert in builds where DAC1 is the scope reference: STATE then
-             * reads back 0, which is the truth. */
             siggen_enable(i != 0);
             return ESP_APPLY_OK;
+        default: /* ESP_KEY_SG_OFFSET: read-only since the generator moved
+                  * to stock's DAC2 path, which has no offset; the key table
+                  * refuses the write before it gets here. */
+            return ESP_APPLY_UNSUPPORTED;
         }
 
     default:
