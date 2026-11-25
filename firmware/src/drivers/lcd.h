@@ -169,6 +169,16 @@ void lcd_write_cmd(uint8_t cmd);
 void lcd_write_data(uint16_t data);
 void lcd_write_data8(uint8_t data);
 uint16_t lcd_read_data(void);
+/* Read n parameter bytes of a panel register (EXP-78); caller owns the bus. */
+void lcd_read_reg(uint8_t cmd, uint8_t *out, uint8_t n);
+
+/* The panel configuration main() sets at boot (EXP-78: one copy, so the
+ * runtime recovery cannot restore something different). */
+#define LCD_MADCTL_BOOT  0xA0u   /* landscape, flipped */
+#define LCD_COLMOD_BOOT  0x55u   /* 16-bit */
+/* Sleep out, then the boot configuration, then display on. wait_ms is how
+ * the caller sleeps (the panel needs 120 ms after SLPOUT). Caller owns the bus. */
+void lcd_panel_wake(void (*wait_ms)(uint32_t ms));
 
 /* LCD controller initialization */
 void lcd_init(void);            /* Full init: GPIO + FSMC + ST7789 sequence */

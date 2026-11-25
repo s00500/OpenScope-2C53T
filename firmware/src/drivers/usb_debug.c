@@ -57,6 +57,7 @@
 #include "../ui/scope_mask.h"
 #include "../ui/scope_record.h"
 #include "../ui/meter_voltage_wave.h"
+#include "../ui/display_trace.h"
 
 #include "fpga_cal_table.h"
 #include "FreeRTOS.h"
@@ -5956,6 +5957,117 @@ static void cmd_meter_wave_args(const char *args)
     usb_send_str("Usage: meter wave [reset|sampler|path|selector|preacq]\r\n");
 }
 
+/* `display` (EXP-76): where the display task is, from the outside. If it is
+ * stuck, "pass began" grows without bound, the stage says which part of the
+ * loop it is in, and the saved PC / LR / stack code words feed addr2line:
+ *   arm-none-eabi-addr2line -f -e build/firmware.elf <pc> <lr> <words...> */
+static void cmd_display(void)
+{
+    static const char *const st_names[] = { "running", "ready", "blocked", "suspended", "deleted" };
+    const uint32_t now = (uint32_t)xTaskGetTickCount();
+    display_probe_t p;
+    uint8_t state;
+    uint32_t free_words;
+    const bool ok = display_task_probe(&p, &state, &free_words);
+
+    usb_debug_printf("display loops %lu  pass began %lu ms ago  stage %s for %lu ms  cmd %u  render %u\r\n",
+                     (unsigned long)display_trace.loops,
+                     (unsigned long)((now - display_trace.pass_tick) * portTICK_PERIOD_MS),
+                     display_stage_name(display_trace.stage),
+                     (unsigned long)((now - display_trace.stage_tick) * portTICK_PERIOD_MS),
+                     (unsigned)display_trace.cmd, (unsigned)display_trace.render_act);
+    if (!ok) {
+        usb_send_str("display task: no handle\r\n");
+        return;
+    }
+    usb_debug_printf("task %s  stack free %lu words  saved sp 0x%08lX\r\n",
+                     state < 5u ? st_names[state] : "?", (unsigned long)free_words,
+                     (unsigned long)p.sp);
+    if (!p.valid) {
+        usb_send_str("saved context: outside the task stack, not decoded\r\n");
+        return;
+    }
+    usb_debug_printf("saved pc 0x%08lX  lr 0x%08lX  exc_return 0x%08lX%s\r\n",
+                     (unsigned long)p.pc, (unsigned long)p.lr,
+                     (unsigned long)p.exc_return, p.fpu_frame ? " (fpu frame)" : "");
+    usb_send_str("stack code words:");
+    for (uint8_t i = 0; i < p.n_code; i++)
+        usb_debug_printf(" %08lX", (unsigned long)p.code[i]);
+    usb_send_str("\r\n");
+}
+
+/* `lcd status` / `lcd reinit` (EXP-78): what the PANEL holds, which a
+ * screenshot cannot show -- `screen dumpbin` is the MCU's own shadow of what
+ * it wrote, so it looks normal while the glass is white.
+ * Power register (RDDPM 0x0A): bit7 booster, bit4 awake (sleep out), bit3
+ * normal mode, bit2 display on. After init: 0x9C. After a reset: 0x08.
+ * The ID (RDDID 0x04) is the anchor: ST7789V answers 85 85 52, and a read
+ * path that cannot produce that proves nothing about the other registers. */
+static void lcd_print_status(const char *tag)
+{
+    uint8_t id[3], st[4], pm = 0, mad = 0, col = 0;
+    lcd_read_reg(0x04, id, 3);
+    lcd_read_reg(0x09, st, 4);
+    lcd_read_reg(0x0A, &pm, 1);
+    lcd_read_reg(0x0B, &mad, 1);
+    lcd_read_reg(0x0C, &col, 1);
+    usb_debug_printf("%sid %02X %02X %02X%s  power 0x%02X (%s, %s%s)  madctl 0x%02X  colmod 0x%02X  status %02X %02X %02X %02X\r\n",
+                     tag, id[0], id[1], id[2],
+                     (id[0] == 0x85 && id[1] == 0x85 && id[2] == 0x52) ? " ok" : " (not 85 85 52: readback unproven)",
+                     pm, (pm & 0x10) ? "awake" : "SLEEPING",
+                     (pm & 0x04) ? "display on" : "DISPLAY OFF",
+                     (pm & 0x80) ? "" : ", booster off",
+                     mad, col, st[0], st[1], st[2], st[3]);
+}
+
+static void shell_wait_ms(uint32_t ms)
+{
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
+
+/* `lcd sleep` (EXP-78): the positive control for the display task's panel
+ * recovery. Puts the panel to sleep with its display off -- what a reset
+ * leaves -- and hands the bus back; within ~250 ms the display task should
+ * find it and re-configure it (`display` counts it). */
+static void cmd_lcd_sleep(void)
+{
+    display_task_hold(true);
+    lcd_write_cmd(0x28);                 /* DISPOFF */
+    lcd_write_cmd(0x10);                 /* SLPIN */
+    vTaskDelay(pdMS_TO_TICKS(150));      /* SLPOUT may not follow within 120 ms */
+    lcd_print_status("asleep: ");
+    display_task_hold(false);
+}
+
+static void cmd_lcd_status(void)
+{
+    display_task_hold(true);
+    lcd_print_status("");
+    display_task_hold(false);
+    display_request_redraw();            /* the read broke the frame being drawn */
+    usb_debug_printf("panel checks %lu  recoveries %lu",
+                     (unsigned long)display_trace.panel_checks,
+                     (unsigned long)display_trace.panel_recoveries);
+    if (display_trace.panel_recoveries)
+        usb_debug_printf("  (last found: power 0x%02X madctl 0x%02X)",
+                         display_trace.panel_power, display_trace.panel_madctl);
+    usb_send_str("\r\n");
+}
+
+static void cmd_lcd_reinit(void)
+{
+    display_task_hold(true);
+    lcd_print_status("before:      ");
+    lcd_write_cmd(0x01);                 /* SWRESET */
+    vTaskDelay(pdMS_TO_TICKS(150));
+    lcd_print_status("after reset: ");   /* control: must read SLEEPING, DISPLAY OFF */
+    lcd_panel_wake(shell_wait_ms);       /* SLPOUT, MADCTL, COLMOD, DISPON as boot */
+    vTaskDelay(pdMS_TO_TICKS(20));
+    lcd_print_status("after init:  ");
+    display_task_hold(false);
+    display_request_redraw();
+}
+
 static void cmd_uptime(void)
 {
     extern volatile uint32_t uptime_seconds;
@@ -8295,6 +8407,14 @@ static const shell_cmd_t shell_cmds[] = {
           NULL /* alias */),
     CMD_V("spi3 probe", cmd_spi3_probe, SC_EXACT | SC_SPI3,
           "spi3 probe                      Bit-bang MISO probe; pokes SPI3 registers directly\r\n"),
+    CMD_V("lcd status", cmd_lcd_status, SC_EXACT,
+          "lcd status                      Panel ID, power, MADCTL, COLMOD read back (EXP-78)\r\n"),
+    CMD_V("lcd sleep", cmd_lcd_sleep, SC_EXACT,
+          "lcd sleep                       Panel to sleep; the display task should recover it (EXP-78)\r\n"),
+    CMD_V("lcd reinit", cmd_lcd_reinit, SC_EXACT,
+          "lcd reinit                      Reset + re-init the panel, then repaint (EXP-78)\r\n"),
+    CMD_V("display", cmd_display, SC_EXACT,
+          "display                         Display task: loop count, stage, state, saved PC (EXP-76)\r\n"),
     CMD_V("uptime", cmd_uptime, SC_EXACT,
           "uptime                          Show uptime\r\n"),
     { NULL, NULL, NULL, 0, NULL }   /* terminator */

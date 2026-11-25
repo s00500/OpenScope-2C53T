@@ -48,6 +48,7 @@ extern void system_clock_config(void);
 #include "fault.h"
 #include "redraw_gate.h"
 #include "scope_mask.h"
+#include "display_trace.h"
 
 /* ═══════════════════════════════════════════════════════════════════
  * Global State (extern'd via ui.h for UI modules)
@@ -188,6 +189,16 @@ fft_result_t fft_result;
 
 /* FreeRTOS handles */
 static TaskHandle_t  xDisplayTaskHandle = NULL;
+
+/* EXP-76: display-task breadcrumbs, read by the shell's `display` command. */
+#define DISPLAY_TASK_STACK_WORDS 768u
+display_trace_t display_trace;
+
+static inline void dt_stage(display_stage_t s)
+{
+    display_trace.stage = (uint8_t)s;
+    display_trace.stage_tick = (uint32_t)xTaskGetTickCount();
+}
 static TaskHandle_t  xInputTaskHandle   = NULL;
 static QueueHandle_t xDisplayQueue      = NULL;
 static QueueHandle_t xInputQueue        = NULL;
@@ -446,6 +457,38 @@ static void scope_render(uint32_t frame, redraw_action_t action)
  * Receives display commands via queue and renders the appropriate screen.
  * This is the only task that writes to the LCD.
  */
+#ifndef EMULATOR_BUILD
+static void panel_wait_ms(uint32_t ms)
+{
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
+
+/* EXP-78: panel health. On bench unit #1 a physical press of UP resets the
+ * ST7789 (the hardware-reset signature: power 0x08, MADCTL 0x00, COLMOD 0x06)
+ * while the MCU runs on; driving the UP line low from firmware does not, so
+ * it is not the UP net. The panel then shows white until it is configured
+ * again. Run between frames (no RAMWR open): read power and MADCTL, and if
+ * two reads in a row say the panel lost its configuration, wake and
+ * configure it as boot does. Returns true if it did, so the caller repaints. */
+static bool display_panel_check(void)
+{
+    uint8_t pm = 0, mad = 0;
+    dt_stage(DT_PANEL);
+    display_trace.panel_checks++;
+    for (int attempt = 0; attempt < 2; attempt++) {
+        lcd_read_reg(0x0A, &pm, 1);
+        lcd_read_reg(0x0B, &mad, 1);
+        if (display_panel_ok(pm, mad, LCD_MADCTL_BOOT))
+            return false;
+    }
+    display_trace.panel_power = pm;
+    display_trace.panel_madctl = mad;
+    lcd_panel_wake(panel_wait_ms);
+    display_trace.panel_recoveries++;
+    return true;
+}
+#endif
+
 static void vDisplayTask(void *pvParameters)
 {
     (void)pvParameters;
@@ -456,6 +499,7 @@ static void vDisplayTask(void *pvParameters)
      * comes up and before the FPGA config sequence, so by the time this task
      * runs it has typically been visible for seconds. Hold it briefly for
      * builds where init is fast (emulator, warm boots), then move on. */
+    dt_stage(DT_START);
     vTaskDelay(pdMS_TO_TICKS(750));
 
     /* Initial draw */
@@ -469,6 +513,8 @@ static void vDisplayTask(void *pvParameters)
     }
 
     for (;;) {
+        display_trace.pass_tick = (uint32_t)xTaskGetTickCount();
+        dt_stage(DT_MODE_SWITCH);
         /* Track mode transitions: for SPI3 acquisition warmup, and to
          * invalidate both redraw gates. Entering a screen must always
          * repaint it, even when that screen's own state is unchanged
@@ -500,7 +546,22 @@ static void vDisplayTask(void *pvParameters)
          * which is exactly the countdown flicker this flag exists to stop.
          * The overlay owner ends with DCMD_REDRAW_ALL, which repaints
          * everything a dropped command would have. */
+#ifndef EMULATOR_BUILD
+        {
+            static TickType_t last_panel_check;
+            const TickType_t now_t = xTaskGetTickCount();
+            if ((TickType_t)(now_t - last_panel_check) >= pdMS_TO_TICKS(250)) {
+                last_panel_check = now_t;
+                if (display_panel_check())
+                    display_request_redraw();   /* served by the receive below */
+            }
+        }
+#endif
+
+        dt_stage(DT_QUEUE_WAIT);
         if (xQueueReceive(xDisplayQueue, &cmd, pdMS_TO_TICKS(50)) == pdTRUE) {
+            display_trace.cmd = cmd;
+            dt_stage(DT_CMD);
             if (ui_modal_active)
                 cmd = DCMD_NONE_MODAL_DROP;
             switch (cmd) {
@@ -597,8 +658,10 @@ static void vDisplayTask(void *pvParameters)
         }
 
         /* Check in with health monitor */
+        dt_stage(DT_HEALTH);
         health_checkin(health_slot_display);
 
+        dt_stage(DT_FPGA_SERVICE);
 #ifndef EMULATOR_BUILD
         if (fpga_service_requests()) {
             scope_entered_frame = frame;
@@ -627,8 +690,10 @@ static void vDisplayTask(void *pvParameters)
          * DCMD_REDRAW_ALL that ends every modal. */
         if (ui_modal_active) {
             frame++;
+            display_trace.loops++;
             continue;
         }
+        dt_stage(DT_INFO_BAR);
         {
             uint32_t ib = info_bar_epoch();
             if (ib != g_info_bar_epoch) {
@@ -651,6 +716,7 @@ static void vDisplayTask(void *pvParameters)
                 const bool time_view = true;
 #endif
                 if (me != g_mask_slot_epoch && time_view) {
+                    dt_stage(DT_MASK_SLOT);
                     scope_ui_mask_slot_refresh();
                     g_mask_slot_epoch = me;
                 }
@@ -665,6 +731,7 @@ static void vDisplayTask(void *pvParameters)
                 if ((frame - scope_entered_frame) >= 10 /* 500ms warmup */
                     && (frame % 7) == 0
                     && fpga.initialized) {
+                    dt_stage(DT_HEARTBEAT);
                     fpga_scope_heartbeat();
                 }
 #endif
@@ -724,11 +791,15 @@ static void vDisplayTask(void *pvParameters)
                 q.idle_tick_frames = q.incremental_ok ? SCOPE_IDLE_LIVE_FRAMES
                                                       : SCOPE_IDLE_FULL_FRAMES;
 
+                dt_stage(DT_GATE);
                 redraw_action_t act = redraw_gate_step(&scope_gate, &q);
-                if (act == REDRAW_SKIP)
+                if (act == REDRAW_SKIP) {
                     ui_scope_skipped++;
-                else
+                } else {
+                    display_trace.render_act = (uint8_t)act;
+                    dt_stage(DT_SCOPE_RENDER);
                     scope_render(frame, act);
+                }
             }
         } else if (current_mode == MODE_SIGNAL_GEN) {
             /* Siggen UI is static: no animation, no live data. It is
@@ -752,6 +823,7 @@ static void vDisplayTask(void *pvParameters)
             if (!auto_select_running &&
                 (submode_changed || ((uc != last_meter_update) && enough_time) ||
                  periodic_due)) {
+                dt_stage(DT_METER);
                 draw_meter_screen();
                 last_meter_update = meter_screen_last_reading_display_update;
                 last_meter_frame  = frame;
@@ -763,6 +835,7 @@ static void vDisplayTask(void *pvParameters)
         /* Popups outside the scope (softkey UI P0, findings F15/F20): drawn
          * over the screen, re-drawn after any repaint, and the screen
          * repainted under them when they expire. */
+        dt_stage(DT_POPUP);
         if (current_mode != MODE_OSCILLOSCOPE) {
             if (ui_popup_overlay_service(g_screen_painted) == 2) {
                 if (current_mode == MODE_MULTIMETER) {
@@ -782,7 +855,57 @@ static void vDisplayTask(void *pvParameters)
         g_screen_painted = false;
 
         frame++;
+        display_trace.loops++;
     }
+}
+
+/* EXP-78: hand the LCD bus to the shell (panel readback / re-init) and back. */
+void display_task_hold(bool hold)
+{
+    if (xDisplayTaskHandle == NULL || xDisplayTaskHandle == xTaskGetCurrentTaskHandle())
+        return;
+    if (hold) vTaskSuspend(xDisplayTaskHandle);
+    else      vTaskResume(xDisplayTaskHandle);
+}
+
+void display_request_redraw(void)
+{
+    uint8_t c = DCMD_REDRAW_ALL;
+    if (xDisplayQueue != NULL)
+        (void)xQueueSend(xDisplayQueue, &c, 0);
+}
+
+/* EXP-76: read the display task's state and saved context from another task.
+ * Valid whenever the display task is not the one running, which on this
+ * single core is always true for a caller: the shell runs at priority 2, the
+ * display task at 1. The scheduler is suspended so the context cannot move
+ * under the read. */
+bool display_task_probe(display_probe_t *p, uint8_t *state, uint32_t *stack_free_words)
+{
+    TaskHandle_t h = xDisplayTaskHandle;
+    *state = 0xFFu;
+    *stack_free_words = 0;
+    if (h == NULL || h == xTaskGetCurrentTaskHandle()) {
+        display_probe_decode(NULL, NULL, 0, 0, p);
+        return false;
+    }
+    TaskStatus_t st;
+    vTaskSuspendAll();
+    vTaskGetInfo(h, &st, pdTRUE, eInvalid);
+    /* pxTopOfStack is the first member of the TCB (FreeRTOS guarantees it
+     * for the port's context switch). */
+    const uint32_t *sp = *(const uint32_t *const *)h;
+    const uint32_t *base = (const uint32_t *)st.pxStackBase;
+    const uint32_t *top = base + DISPLAY_TASK_STACK_WORDS;
+    if (sp >= base && sp < top)
+        display_probe_decode(sp, top, 0x08000000u, 0x08100000u, p);
+    else
+        display_probe_decode(NULL, NULL, 0, 0, p);
+    p->sp = (uint32_t)(uintptr_t)sp;
+    (void)xTaskResumeAll();
+    *state = (uint8_t)st.eCurrentState;
+    *stack_free_words = (uint32_t)st.usStackHighWaterMark;
+    return true;
 }
 
 /*
@@ -1023,11 +1146,11 @@ int main(void)
         delay_ms(200);
         lcd_write_cmd(0x36);  /* MADCTL — landscape, flipped */
         delay_ms(1);
-        lcd_write_data8(0xA0);
+        lcd_write_data8(LCD_MADCTL_BOOT);
         delay_ms(10);
         lcd_write_cmd(0x3A);  /* Pixel format 16-bit */
         delay_ms(1);
-        lcd_write_data8(0x55);
+        lcd_write_data8(LCD_COLMOD_BOOT);
         delay_ms(10);
         lcd_write_cmd(0x29);  /* Display on */
         delay_ms(50);
@@ -1175,7 +1298,7 @@ int main(void)
     button_scan_init(xInputQueue);
 
     /* Create tasks */
-    xTaskCreate(vDisplayTask, "display", 768, NULL, 1, &xDisplayTaskHandle);
+    xTaskCreate(vDisplayTask, "display", DISPLAY_TASK_STACK_WORDS, NULL, 1, &xDisplayTaskHandle);
     xTaskCreate(vInputTask,   "key",     384, NULL, 4, &xInputTaskHandle);
 
     /* Register tasks with health monitor */

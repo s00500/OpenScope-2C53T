@@ -276,6 +276,42 @@ uint16_t lcd_read_data(void)
     return *LCD_DATA_ADDR;
 }
 
+/* Panel register readback (EXP-78).
+ *
+ * The read strobe runs on the XMC READ timing (SNTCFG0). Boot sets it for
+ * speed (0x02020424: DATAST 4 HCLK, ~17 ns at 240 MHz), far below the
+ * ST7789's read access time, so the read is done with a slow read timing
+ * (DATAST 255 HCLK, ~1 us) and the boot value is put back. Writes use the
+ * separate extended-mode write timing (SNWTCFG0) and are not affected.
+ * Parameters come back on D[7:0] after one dummy read.
+ *
+ * The caller must own the bus: a frame being drawn has its RAMWR stream
+ * broken by this command, so hold the display task and repaint afterwards. */
+void lcd_panel_wake(void (*wait_ms)(uint32_t ms))
+{
+    lcd_write_cmd(0x11);                 /* SLPOUT */
+    wait_ms(120);
+    lcd_write_cmd(0x36);                 /* MADCTL */
+    lcd_write_data8(LCD_MADCTL_BOOT);
+    lcd_write_cmd(0x3A);                 /* COLMOD */
+    lcd_write_data8(LCD_COLMOD_BOOT);
+    lcd_write_cmd(0x29);                 /* DISPON */
+}
+
+#define LCD_XMC_SNTCFG0 (*(volatile uint32_t *)0xA0000004u)
+void lcd_read_reg(uint8_t cmd, uint8_t *out, uint8_t n)
+{
+    const uint32_t saved = LCD_XMC_SNTCFG0;
+    LCD_XMC_SNTCFG0 = 0x0202FF2Fu;       /* ADDSET 15, ADDHLD 2, DATAST 255 */
+    __asm volatile ("dsb" ::: "memory");
+    lcd_write_cmd(cmd);
+    (void)lcd_read_data();               /* dummy read */
+    for (uint8_t i = 0; i < n; i++)
+        out[i] = (uint8_t)lcd_read_data();
+    LCD_XMC_SNTCFG0 = saved;
+    __asm volatile ("dsb" ::: "memory");
+}
+
 /* ========================================================================
  * GPIO initialization for EXMC pins
  *
