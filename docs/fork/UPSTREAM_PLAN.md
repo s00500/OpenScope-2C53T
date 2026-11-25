@@ -29,6 +29,11 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 | 35c7f00 | fix(scope): one vertical map for every renderer (comb, stale readout strip, true-scale jump) | EXP-77, `test_scope_vmap` | yes with `--3way` (only a neighbouring Makefile line differs) | not proposed yet; candidate |
 | 083dc65 | feat(display): `display` breadcrumb, `lcd status/reinit/sleep`, self-healing panel | EXP-76, EXP-78, `test_display_trace` | no: Makefile and usb_debug.c context sit on #41/#47 changes; small port needed | the self-heal and `lcd` readback **duplicate #85's `pr/lcd-health-check`** (6119415, deOliveira-R, earlier): upstream should take theirs; offer only the `display` breadcrumb, ported onto theirs |
 | 2438e09 | lcd: hold PD6 (RESX) high, write cycle 17 -> 67 ns | cherry-pick of deOliveira-R's 2c68e37 (#85); on my unit: 0 panel resets over many UP presses, 1-2 per press before | yes (it is their commit) | **theirs**: #85, branch `pr/lcd-reset-and-timing`; we support it with our evidence (comment draft) |
+| 3ca73da | siggen: stock's DAC2/PA5 + TMR7 + DMA2 ch4 generator, 13 waveforms (replaces the DAC1 driver that never reached GEN) | cherry-pick of deOliveira-R's 4bf87c0 (`bench/parity`, #68); EXP-79 on my unit; `test-siggen` 61 checks | yes with `--3way` | **theirs**: offered in #68 (mquerostudio's and deOliveira-R's comments), no PR yet; we support it with EXP-79 |
+| 3a9f327 | scope_trigger: mask interrupts around the DAC_CTRL read-modify-write (DAC1 and DAC2 share the register) | cherry-pick of deOliveira-R's b671235 | yes | **theirs**, goes with 3ca73da |
+| 0d97f93 | remote: `sg.*` keys follow the DAC2 generator (0.1 V amplitude, integer Hz, offset read-only, 13 waves) | `test_remote_proto` 203 checks; CLI params test | no: stacked on #41 / #47 (M6) | with M6 |
+| 392ff97 | chore: ignore `.scratchpad/` and `.playwright-mcp/` | none needed | yes | trivial; fold into any PR that wants it |
+| d11f69c | exp(79): the generator against a Rigol DS1104Z | EXP-79 file + `reverse_engineering/captures/exp79/` | yes | evidence for #68; offer as a comment with the user's approval |
 
 ## How to cut an upstream PR
 
@@ -61,3 +66,6 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 - No signal larger than noise has been on the inputs in these sessions: the
   frequency badge on a real tone and NORMAL trigger are untested on the device
   with these changes.
+- EXP-79: the generator's absolute level is unresolved (the Rigol needs
+  Self-Cal; its DC reading moves 0.2 to 1.36 V with its bandwidth limit).
+  GEN into the 2C53T's own inputs (loopback) has not been run yet.
