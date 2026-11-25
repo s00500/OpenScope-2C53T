@@ -113,3 +113,5 @@ reverse_engineering/captures/export/
 # reproduce our results without it.
 # /esp32_siggen/
 .claude/worktrees/
+.scratchpad/
+.playwright-mcp/
