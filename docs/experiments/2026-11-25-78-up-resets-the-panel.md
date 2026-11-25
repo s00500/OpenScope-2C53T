@@ -1,8 +1,8 @@
 # EXP-78: pressing UP resets the LCD controller
 
 - **Date:** 2026-11-25
-- **Unit:** unit #4 (the new 2C53T of EXP-74). The first commits of this
-  session said "bench unit #1"; that was wrong.
+- **Unit:** my unit (the first commits of this session said "bench unit #1";
+  that was wrong)
 - **Build:** `make guest-coldtrace` from `feat/remote-control`, flashed over CDC:
   `exp78-lcd.bin` (readback, build 21:47:07), then `exp78-heal.bin`
   (+ recovery, build 22:08:06, sha256 `145c2730…`), then 2438e09 (+ the PD6
@@ -10,7 +10,7 @@
 - **Status:** CONFIRMED. The panel's reset line PD6 (RESX) floats in
   OpenScope, and a physical key press pulses it low: issue #85 (deOliveira-R,
   2026-11-12) found and fixed this on unit #2; holding PD6 high ends it on
-  unit #4 too. We should have searched the issues before the bench work.
+  my unit too. We should have searched the issues before the bench work.
 
 ## 1. Problem
 
@@ -109,7 +109,7 @@ PD6 = RESX functionally (PD6 low -> white). Our own GPIOD dump earlier in this
 session already showed it: CRL `B4BB44BB`, PD6 nibble 4 = floating input (read
 1: the line idles high but nothing holds it).
 
-| step on unit #4 | result |
+| step on my unit | result |
 |---|---|
 | live, from the shell: PD6 output latch set high (`mem write 0x40011410 0x40`), then `gpio mode D6 out` (no low glitch) | PD6 CRL 3, odt 1; panel untouched (0x9C, 0 recoveries) |
 | user presses UP several times | "no white anymore"; **4337 checks, 0 recoveries** (before: 1-2 per press) |
@@ -139,7 +139,7 @@ session already showed it: CRL `B4BB44BB`, PD6 nibble 4 = floating input (read
   excluded: mechanical flex / ESD" as the open root cause: superseded by
   PD6 (#85).
 - **Established (final):** PD6 floating is the cause; holding it high fixes
-  it on unit #4 (0 recoveries over many UP presses). The self-heal stays as a
+  it on my unit (0 recoveries over many UP presses). The self-heal stays as a
   safety net; for upstream, #85's `pr/lcd-health-check` covers the same.
 - **Follow-up:** none for this symptom. Lesson: search the issue tracker
   before the bench.

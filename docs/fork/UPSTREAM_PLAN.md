@@ -28,7 +28,7 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 | 302e268 | fix(fpga): setting change timed out on the post-edge sleep (`fpga parkwake`) | EXP-76: 3/3 bursts refused off, 3/3 accepted on | yes | not proposed yet; candidate |
 | 35c7f00 | fix(scope): one vertical map for every renderer (comb, stale readout strip, true-scale jump) | EXP-77, `test_scope_vmap` | yes with `--3way` (only a neighbouring Makefile line differs) | not proposed yet; candidate |
 | 083dc65 | feat(display): `display` breadcrumb, `lcd status/reinit/sleep`, self-healing panel | EXP-76, EXP-78, `test_display_trace` | no: Makefile and usb_debug.c context sit on #41/#47 changes; small port needed | the self-heal and `lcd` readback **duplicate #85's `pr/lcd-health-check`** (6119415, deOliveira-R, earlier): upstream should take theirs; offer only the `display` breadcrumb, ported onto theirs |
-| 2438e09 | lcd: hold PD6 (RESX) high, write cycle 17 -> 67 ns | cherry-pick of deOliveira-R's 2c68e37 (#85); on unit #4: 0 panel resets over many UP presses, 1-2 per press before | yes (it is their commit) | **theirs**: #85, branch `pr/lcd-reset-and-timing`; we support it with our evidence (comment draft) |
+| 2438e09 | lcd: hold PD6 (RESX) high, write cycle 17 -> 67 ns | cherry-pick of deOliveira-R's 2c68e37 (#85); on my unit: 0 panel resets over many UP presses, 1-2 per press before | yes (it is their commit) | **theirs**: #85, branch `pr/lcd-reset-and-timing`; we support it with our evidence (comment draft) |
 
 ## How to cut an upstream PR
 
@@ -43,7 +43,7 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 
 ## Errata
 
-- The unit of EXP-76/77/78 is **unit #4**. Commit messages 302e268, 35c7f00
+- EXP-76/77/78 ran on **my unit**. Commit messages 302e268, 35c7f00
   and 083dc65, the fixture header `scope_records_flat.txt` and PR #108's
   description say "bench unit #1"; that is wrong. The experiment files are
   corrected; the rest is corrected when each change is cut for upstream
