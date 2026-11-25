@@ -49,6 +49,7 @@ C_SOURCES += src/ui/scope_cal.c
 C_SOURCES += src/ui/scope_timebase.c
 C_SOURCES += src/ui/scope_cursor.c
 C_SOURCES += src/ui/scope_freq.c
+C_SOURCES += src/ui/scope_vmap.c
 C_SOURCES += src/tasks/input_handler.c
 C_SOURCES += src/tasks/remote_ops.c
 C_SOURCES += src/drivers/flash_fs.c
@@ -663,6 +664,14 @@ test-meter: test-meter-data test-meter-auto test-meter-voltage-wave test-fpga-me
 # against a transcription of the pre-B2 logic. See tests/test_redraw_gate.c.
 $(BUILD_DIR)/test_redraw_gate: tests/test_redraw_gate.c src/ui/redraw_gate.h | $(BUILD_DIR)
 	$(HOST_CC) -std=gnu11 -Wall -Wextra -Isrc/ui $< -o $@
+
+# Vertical map (EXP-77): the one ADC-count -> row transform every scope
+# renderer uses; zoom cap, centring, clamping and true-scale geometry.
+$(BUILD_DIR)/test_scope_vmap: tests/test_scope_vmap.c src/ui/scope_vmap.c src/ui/scope_vmap.h | $(BUILD_DIR)
+	$(HOST_CC) -std=gnu11 -Wall -Wextra -Isrc/ui $< src/ui/scope_vmap.c -o $@
+
+test-scope-vmap: $(BUILD_DIR)/test_scope_vmap
+	$<
 
 test-redraw-gate: $(BUILD_DIR)/test_redraw_gate
 	$<
