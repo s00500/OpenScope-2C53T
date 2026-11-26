@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 
 static int failures = 0;
 
@@ -42,7 +43,7 @@ static int failures = 0;
 static void test_uncalibrated_ranges_return_zero(void)
 {
     for (uint8_t ch = 1; ch <= 2; ch++) {
-        for (uint8_t r = 0; r <= 3; r++) {
+        for (uint8_t r = 0; r <= 1; r++) {   /* EXP-89: 2/3 measured */
             CHECK(scope_cal_mv_per_count(ch, r) == 0.0f,
                   "ch%u r%u: railed range must return exactly 0.0f, got %f",
                   ch, r, (double)scope_cal_mv_per_count(ch, r));
@@ -81,11 +82,12 @@ static void test_source_scale_is_uniform(void)
     /* EXP-83/84 (2026-11-26, my unit). Unit #1's EXP-08 rows (14.08 / 21.83 /
      * 42.95 / 88.42 / 279.05 / 352.17 and 9.49 / 20.96 / 41.71 / 83.79 /
      * 223.71 / 425.00, x0.92) are withdrawn; see scope_cal.c. */
-    static const float raw_ch1[] = { 7.85f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f };
-    static const float raw_ch2[] = { 7.82f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f };
+    /* r2-r4 from EXP-89 (r4 was 7.85 / 7.82 on two levels, withdrawn). */
+    static const float raw_ch1[] = { 1.983f, 3.927f, 7.866f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f };
+    static const float raw_ch2[] = { 1.974f, 3.906f, 7.783f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f };
 
-    for (uint8_t i = 0; i < 6; i++) {
-        const uint8_t r = (uint8_t)(i + 4u);
+    for (uint8_t i = 0; i < 8; i++) {
+        const uint8_t r = (uint8_t)(i + 2u);
 
         const float got1 = scope_cal_mv_per_count(1, r);
         const float got2 = scope_cal_mv_per_count(2, r);
@@ -108,7 +110,7 @@ static void test_measured_tier_claims_hold(void)
      * form a doubling ladder. Those are the grounds for calling them
      * MEASURED, so they are asserted rather than asserted-in-a-comment.
      */
-    for (uint8_t r = 5; r <= 7; r++) {
+    for (uint8_t r = 3; r <= 7; r++) {      /* 3/4 since EXP-89 */
         CHECK(scope_cal_get_tier(1, r) == SCOPE_CAL_MEASURED,
               "r%u should be MEASURED on ch1", r);
         CHECK(scope_cal_get_tier(2, r) == SCOPE_CAL_MEASURED,
@@ -123,18 +125,18 @@ static void test_measured_tier_claims_hold(void)
               r, (double)(disagreement * 100.0f));
     }
 
-    /* EXP-83/84: the whole calibrated ladder is a 1-2-5 attenuator,
+    /* EXP-83/84/89: the whole calibrated ladder, r2->r3 2x, r3->r4 2x,
      * r4->r5 2.5x, r5->r6 2x, r6->r7 2x, r7->r8 2.5x, r8->r9 2x, on both
      * channels within 8 % (r8/r9 rest on 7-15 counts of span). */
     {
-        const float step[] = { 2.5f, 2.0f, 2.0f, 2.5f, 2.0f };
+        const float step[] = { 2.0f, 2.0f, 2.5f, 2.0f, 2.0f, 2.5f, 2.0f };
         for (uint8_t ch = 1; ch <= 2; ch++)
-            for (uint8_t r = 4; r <= 8; r++) {
+            for (uint8_t r = 2; r <= 8; r++) {
                 const float got = scope_cal_mv_per_count(ch, (uint8_t)(r + 1u)) /
                                   scope_cal_mv_per_count(ch, r);
-                CHECK(fabsf(got / step[r - 4] - 1.0f) < 0.08f,
+                CHECK(fabsf(got / step[r - 2] - 1.0f) < 0.08f,
                       "ch%u r%u->r%u: step %.2f, expected ~%.1f", ch, r, r + 1,
-                      (double)got, (double)step[r - 4]);
+                      (double)got, (double)step[r - 2]);
             }
     }
 
@@ -155,7 +157,7 @@ static void test_provisional_ranges_still_produce_a_number(void)
     /* Provisional is not "unusable": a rough volt figure beats a raw count,
      * and the tier plus the label marker is how the user is told which is
      * which. */
-    const uint8_t provisional[] = { 4, 8, 9 };
+    const uint8_t provisional[] = { 2, 8, 9 };   /* r4 MEASURED since EXP-89 */
 
     for (uint8_t i = 0; i < 3; i++) {
         const uint8_t r = provisional[i];
@@ -185,8 +187,14 @@ static void test_labels(void)
     char buf[16];
 
     /* Uncalibrated -> an explicit nothing, never a nominal number. */
+    scope_cal_range_label(1, 1, buf, sizeof(buf));
+    CHECK(strcmp(buf, "--") == 0, "r1 label should be \"--\", got \"%s\"", buf);
+
+    /* EXP-89's sensitive rows: 3.927 * 32 = 125.7 mV, 1.983 * 32 = 63.5 (provisional). */
+    scope_cal_range_label(1, 3, buf, sizeof(buf));
+    CHECK(strcmp(buf, "126mV") == 0, "r3 label should be 126mV, got \"%s\"", buf);
     scope_cal_range_label(1, 2, buf, sizeof(buf));
-    CHECK(strcmp(buf, "--") == 0, "r2 label should be \"--\", got \"%s\"", buf);
+    CHECK(strcmp(buf, "~63mV") == 0, "r2 label should be ~63mV, got \"%s\"", buf);
 
     /* Measured -> a plain number, no marker. */
     scope_cal_range_label(1, 6, buf, sizeof(buf));
@@ -237,11 +245,11 @@ static void test_true_scale_gate_matches_calibration(void)
                   "ch%u r%u: true_scale_ok(%d) must match has-cal(%d)",
                   ch, r, ok, cal);
         }
-        /* Ranges 0-3 rail -> must autofit; 5/6/7 are MEASURED -> true scale. */
-        for (uint8_t r = 0; r <= 3; r++)
+        /* Ranges 0-1 have no gain -> must autofit; 3-7 are MEASURED -> true scale. */
+        for (uint8_t r = 0; r <= 1; r++)
             CHECK(!scope_cal_true_scale_ok(ch, r),
                   "ch%u r%u: railed range must NOT render true scale", ch, r);
-        for (uint8_t r = 5; r <= 7; r++)
+        for (uint8_t r = 3; r <= 7; r++)
             CHECK(scope_cal_true_scale_ok(ch, r),
                   "ch%u r%u: measured range must render true scale", ch, r);
     }
@@ -288,6 +296,108 @@ static void test_probe_factor(void)
     CHECK(scope_cal_volts_per_count(2, r) == v2, "unregistering restores 1x");
 }
 
+static void test_zero_model(void)
+{
+    /*
+     * EXP-89 (2026-11-26, my unit), input shorted, DC: every measured point,
+     * stated here independently of the table. The model (one zero per range
+     * at code 2048, one counts-per-code per channel) must reproduce all 50
+     * of them within 0.3 counts. CH2's third code tests linearity; CH1's
+     * second tests that one slope serves every range.
+     */
+    static const float ch1_2048[] = { 48.80f, 45.96f, 44.39f, 44.06f, 43.73f, 48.85f, 45.98f, 44.67f, 44.09f, 43.79f };
+    static const float ch1_2560[] = { 110.92f, 108.17f, 106.32f, 105.86f, 105.54f, 110.96f, 108.21f, 106.80f, 105.87f, 105.57f };
+    static const float ch2_2048[] = { 40.56f, 42.70f, 43.68f, 44.34f, 44.64f, 40.62f, 42.91f, 43.82f, 44.77f, 44.90f };
+    static const float ch2_2544[] = { 101.09f, 102.95f, 104.20f, 104.75f, 105.14f, 101.20f, 103.16f, 104.39f, 105.42f, 105.63f };
+    static const float ch2_3040[] = { 161.89f, 163.44f, 164.83f, 165.04f, 165.21f, 162.03f, 163.87f, 165.05f, 165.57f, 165.71f };
+    struct { uint8_t ch; uint16_t code; const float *want; } pts[] = {
+        { 1, 2048, ch1_2048 }, { 1, 2560, ch1_2560 },
+        { 2, 2048, ch2_2048 }, { 2, 2544, ch2_2544 }, { 2, 3040, ch2_3040 },
+    };
+    for (unsigned i = 0; i < sizeof pts / sizeof pts[0]; i++)
+        for (uint8_t r = 0; r < SCOPE_CAL_RANGE_COUNT; r++) {
+            float z = -1.0f;
+            CHECK(scope_cal_zero_counts(pts[i].ch, r, pts[i].code, &z), "ch%u r%u zero refused", pts[i].ch, r);
+            CHECK(fabsf(z - pts[i].want[r]) < 0.3f, "ch%u r%u code %u: model %.2f, measured %.2f",
+                  pts[i].ch, r, pts[i].code, (double)z, (double)pts[i].want[r]);
+        }
+
+    /* dac1_linearity.py: GEN held at its lowest level, so only differences
+     * from code 2048 are the zero's; two points each within 0.29 of the
+     * model allow 0.5 for their difference. */
+    {
+        static const uint16_t codes[] = { 2048, 2304, 2560, 2816, 3072 };
+        static const float r5[] = { 49.91f, 81.19f, 112.38f, 143.43f, 174.61f };
+        static const float r9[] = { 43.86f, 74.49f, 105.66f, 137.03f, 168.25f };
+        for (unsigned i = 1; i < 5; i++) {
+            float a, b, c, d;
+            scope_cal_zero_counts(1, 5, codes[i], &a); scope_cal_zero_counts(1, 5, 2048, &b);
+            scope_cal_zero_counts(1, 9, codes[i], &c); scope_cal_zero_counts(1, 9, 2048, &d);
+            CHECK(fabsf((a - b) - (r5[i] - r5[0])) < 0.5f, "ch1 r5 2048->%u: model %+.2f, measured %+.2f",
+                  codes[i], (double)(a - b), (double)(r5[i] - r5[0]));
+            CHECK(fabsf((c - d) - (r9[i] - r9[0])) < 0.5f, "ch1 r9 2048->%u: model %+.2f, measured %+.2f",
+                  codes[i], (double)(c - d), (double)(r9[i] - r9[0]));
+        }
+    }
+
+    /* Volts: 0 V at the zero, one division above it is volts/div. */
+    for (uint8_t ch = 1; ch <= 2; ch++)
+        for (uint8_t r = 2; r <= 9; r++) {
+            float z, v0 = 1.0f, v1 = 0.0f;
+            scope_cal_zero_counts(ch, r, 2300, &z);
+            CHECK(scope_cal_counts_to_volts(ch, r, 2300, z, &v0) && fabsf(v0) < 1e-6f,
+                  "ch%u r%u: the zero is not 0 V (%f)", ch, r, (double)v0);
+            CHECK(scope_cal_counts_to_volts(ch, r, 2300, z + SCOPE_CAL_COUNTS_PER_DIV, &v1) &&
+                  fabsf(v1 - scope_cal_volts_per_div(ch, r)) < 1e-4f * scope_cal_volts_per_div(ch, r),
+                  "ch%u r%u: a division above 0 V is %f, volts/div %f", ch, r, (double)v1,
+                  (double)scope_cal_volts_per_div(ch, r));
+        }
+
+    /* A zero without a gain is not a volt; nonsense arguments are refused. */
+    {
+        float v = 123.0f, z = 123.0f;
+        CHECK(!scope_cal_counts_to_volts(1, 1, 2048, 100.0f, &v) && v == 123.0f, "r1 has no gain");
+        CHECK(!scope_cal_zero_counts(0, 5, 2048, &z) && z == 123.0f, "ch0 must not resolve");
+        CHECK(!scope_cal_zero_counts(3, 5, 2048, &z), "ch3 must not resolve");
+        CHECK(!scope_cal_zero_counts(1, SCOPE_CAL_RANGE_COUNT, 2048, &z), "range past the end");
+        CHECK(!scope_cal_counts_to_volts(1, 5, 2048, 100.0f, NULL), "NULL out");
+    }
+
+    /* The inverse lands back on the code, and clamps. */
+    for (uint8_t ch = 1; ch <= 2; ch++)
+        for (uint16_t code = 1600; code <= 3600; code += 250) {
+            float z;
+            scope_cal_zero_counts(ch, 5, code, &z);
+            const uint16_t back = scope_cal_offset_for_zero(ch, 5, z);
+            CHECK(back == code, "ch%u: inverse of code %u gave %u", ch, code, back);
+        }
+    CHECK(scope_cal_offset_for_zero(1, 5, -500.0f) == 0u, "clamp low");
+    CHECK(scope_cal_offset_for_zero(2, 5, 900.0f) == 4095u, "clamp high");
+    CHECK(scope_cal_offset_for_zero(0, 5, 128.0f) == SCOPE_CAL_ZERO_REF_CODE, "bad ch -> ref");
+    /* 0 V mid-scale on CH1 r5 needs about 2700 (EXP-89 arithmetic). */
+    CHECK(abs((int)scope_cal_offset_for_zero(1, 5, 128.0f) - 2701) <= 2, "CH1 r5 centre code %u",
+          scope_cal_offset_for_zero(1, 5, 128.0f));
+}
+
+static void test_format_volts(void)
+{
+    static const struct { float v; const char *want; } t[] = {
+        { 0.0f, "0mV" }, { 0.0004f, "0mV" }, { -0.0004f, "0mV" },
+        { 0.0449f, "+45mV" }, { -0.045f, "-45mV" }, { 0.9994f, "+999mV" },
+        { 0.9996f, "+1.00V" }, { 1.234f, "+1.23V" }, { -2.5f, "-2.50V" },
+        { 9.994f, "+9.99V" }, { 9.996f, "+10.0V" }, { 12.34f, "+12.3V" },
+        { -99.96f, "-100V" }, { 123.4f, "+123V" },
+    };
+    for (unsigned i = 0; i < sizeof t / sizeof t[0]; i++) {
+        char b[12];
+        scope_cal_format_volts(t[i].v, b, sizeof b);
+        CHECK(strcmp(b, t[i].want) == 0, "format %f: got \"%s\", want \"%s\"", (double)t[i].v, b, t[i].want);
+    }
+    char small[4];
+    scope_cal_format_volts(1.234f, small, sizeof small);
+    CHECK(strlen(small) == 3, "truncates to the buffer");
+}
+
 int main(void)
 {
     test_uncalibrated_ranges_return_zero();
@@ -299,6 +409,8 @@ int main(void)
     test_volts_per_div_is_derived();
     test_labels();
     test_probe_factor();
+    test_zero_model();
+    test_format_volts();
 
     if (failures == 0) {
         printf("test_scope_cal: all checks passed\n");

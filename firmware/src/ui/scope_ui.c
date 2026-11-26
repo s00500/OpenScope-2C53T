@@ -912,7 +912,13 @@ static void chan_map_prep(autofit_t *a, const volatile uint8_t *buf, bool split,
      * in both renderers. */
     const scope_state_t *ss = scope_state_get();
     scope_vmap_offset(a, band ? ss->ch2.position : ss->ch1.position);
-    g_chan_ref_y[band ? 1 : 0] = scope_vmap_ref_y(a);
+    /* The marker points at the channel's 0 V where it is known (EXP-89):
+     * the calibrated zero through this same map, so it sits on a grounded
+     * trace and clamps to the band edge when 0 V is outside the window.
+     * Without a zero (offset never armed) it falls back to the fit's centre. */
+    float z;
+    g_chan_ref_y[band ? 1 : 0] = scope_chan_zero_counts(band ? 2u : 1u, &z)
+                                 ? scope_vmap_y_counts(a, z) : scope_vmap_ref_y(a);
 }
 
 /*
@@ -988,6 +994,41 @@ static float autofit_counts_per_pixel(const autofit_t *a)
  */
 static uint16_t scope_soft_trigger_offset(const scope_state_t *ss,
                                           const volatile uint8_t *src_buf);
+
+/* Channel ch's (1/2) range and the code of its offset reference in force:
+ * DAC1/PA4 for CH1, TMR13/PA6 for CH2, as the drivers record them. Code 0
+ * means "never armed" (emulator, early boot): no zero then. */
+static bool chan_offset(uint8_t ch, uint8_t *range, uint16_t *code)
+{
+    const scope_state_t *ss = scope_state_get();
+    *range = (ch == 2u) ? ss->ch2.vdiv_idx : ss->ch1.vdiv_idx;
+    *code  = (ch == 2u) ? scope_trigger_ch2_last() : scope_trigger_dac_last();
+    return *code != 0u;
+}
+
+bool scope_chan_zero_counts(uint8_t ch, float *out)
+{
+    uint8_t r;
+    uint16_t code;
+    return chan_offset(ch, &r, &code) && scope_cal_zero_counts(ch, r, code, out);
+}
+
+/* The hardware trigger level as volts at the source channel's probe tip:
+ * the record code that fires (reg 0x08 - 28, EXP-55/56) less that
+ * channel's 0 V, times its volts per count (EXP-89). The 28 was measured on
+ * CH1 (ranges 5 and 7 on unit #1; range 5 on my unit, EXP-89: the trigger
+ * sample within 2 counts of the printed level); on CH2 it is assumed. */
+bool scope_trigger_level_volts(float *out)
+{
+    const scope_state_t *ss = scope_state_get();
+    const uint8_t ch = (ss->trigger.source == TRIG_SRC_CH2) ? 2u : 1u;
+    uint8_t r;
+    uint16_t code;
+    if (!chan_offset(ch, &r, &code))
+        return false;
+    const float rec = (float)fpga_acq_trig_code_get() + FPGA_ADC_OFFSET;
+    return scope_cal_counts_to_volts(ch, r, code, rec, out);
+}
 
 static int16_t trigger_marker_y(const scope_state_t *ss, const autofit_t *a)
 {
@@ -1759,9 +1800,9 @@ static void scope_chips_build(const scope_state_t *ss, const theme_t *th)
     }
 
     /* Channel reference markers on the left edge (2026-11-26): a "1" / "2"
-     * flag in the channel colour at the row its map calls the reference
-     * (scope_vmap_ref_y: the middle of the fitted window in autofit, code 128
-     * in true scale), moving with the vertical position. Kept clear of the
+     * flag in the channel colour at the channel's 0 V (EXP-89; the fit's
+     * centre where no zero is known), moving with the vertical position and
+     * clamped to the band edge when 0 V is off the window. Kept clear of the
      * top row and the readout rows; the tip is pixel-drawn (chan_ref_px). */
     for (uint8_t c = 0; c < 2u; c++) {
         g_ref_tip[c].on = false;

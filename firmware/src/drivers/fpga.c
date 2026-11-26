@@ -32,6 +32,7 @@
 #include "../ui/scope_state.h"
 #include "../ui/scope_timebase.h"
 #include "../ui/scope_mask.h"
+#include "../ui/scope_cal.h"
 #include "../ui/meter_voltage_wave.h"
 #include "at32f403a_407.h"
 #include "FreeRTOS.h"
@@ -5943,15 +5944,27 @@ void fpga_init(void)
      * and cannot disturb the FPGA. ⚠ Drives PA6 as AF PWM — confirm on the bench
      * that PA6 is really the CH2 reference and not a conflicting frontend line. */
     scope_trigger_ch2_init();
-    /* Arm at the code that CENTERS CH2, not raw mid-scale. DAC1 (CH1) centers at
-     * 2048 because it is a true 12-bit DAC — 2048 is mid voltage. TMR13 is a
-     * PWM-DAC through an RC filter, so its centering code is NOT 2048: bench
-     * unit #1, range 5 (2026-08-27, JDS6600 on CH2) measured 2048->mean 65,
-     * 3072->mean 195, which interpolates to ADC 128 at code 2544. Arming 2048
-     * left CH2 at mean ~65 (low, looked like "railed noise" with no signal);
-     * 2544 boots CH2 centered, mirroring CH1's fixed-arm pattern. The runtime
-     * `fpga scope center ch2` servo refines this per-range / per-unit. */
-    scope_trigger_ch2_raw(2544);
+    /* Arm where CH2's 0 V lands on the same ADC count as CH1's on range 5
+     * (EXP-89, 2026-11-26): both channels then keep 0 V near the bottom of
+     * the converter (~44-49 counts), the most room for positive signals, and
+     * the "1"/"2" 0 V flags line up. The code comes from the zero model in
+     * scope_cal, so it follows the table: 2114 on my unit. Other ranges'
+     * zeros differ by up to ~5 counts at a fixed code; the flags and the
+     * volts read the zero per range, so they stay right.
+     *
+     * WITHDRAWN 2026-11-26: the fixed 2544. Bench unit #1 (2026-08-27,
+     * JDS6600 on CH2, range 5) measured 2048 -> mean 65, 3072 -> mean 195
+     * and armed 2544 to put a signal's MEAN at mid-scale. On my unit it put
+     * 0 V at 101-106 counts, so a 0-3 V signal on range 5 clipped at CH2's
+     * 227-count ceiling (101 + 150), while CH1 sat at ~49. The runtime
+     * `fpga scope center ch2` servo still centres per range on request. */
+    {
+        float z1;
+        uint16_t c2 = 2544u;    /* only if the model refused (it cannot here) */
+        if (scope_cal_zero_counts(1u, 5u, scope_trigger_dac_last(), &z1))
+            c2 = scope_cal_offset_for_zero(2u, 5u, z1);
+        scope_trigger_ch2_raw(c2);
+    }
 #endif
 
     /* Frontend relays — bench run 3 (2026-08-12, first live capture): the

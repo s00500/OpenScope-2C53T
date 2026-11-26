@@ -74,13 +74,17 @@ at the new setting (EXP-88).
   line.
 - **Trigger level:** the dotted horizontal line with the arrow at the right
   edge, denser in Trigger mode. A level above or below the whole signal sits
-  on the band edge, which is where NORMAL mode holds.
+  on the band edge, which is where NORMAL mode holds. In Trigger mode UP/DOWN
+  raise a popup with the level in volts at the source channel's probe tip,
+  e.g. `Trig -1.08V  CH1` (EXP-89); on a range without a calibration it
+  shows the level step and the FPGA code instead.
 - **Channel references:** a "1" / "2" flag in the channel colour on the left
-  edge of each channel's band, which moves with Position. In the default
-  autofit view it marks the middle of the channel's fitted range, which the
-  trace is centred on. It is not a measured 0 V. With the true-scale
-  graticule it marks ADC code 128, which is 0 V once the baseline has been
-  centred (`fpga scope center`).
+  edge of each channel's band, at that channel's 0 V (EXP-89: the measured
+  zero for its range and offset setting). It moves with Position, and when
+  0 V is outside the window the trace is drawn in, it sits on the band edge
+  on the side 0 V is. In AC coupling 0 V is the signal's average. Without a
+  zero (an offset reference never armed) it marks the middle of the fitted
+  range instead.
 
 The V/div and time/div labels come from the measured tables (`scope_cal.c`,
 `scope_timebase.c`); a step without a measurement shows `--`.

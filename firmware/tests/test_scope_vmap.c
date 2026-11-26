@@ -160,8 +160,44 @@ static void test_reference_row(void)
           scope_vmap_ref_y(&m), scope_vmap_y(&m, 128u));
 }
 
+/* The 0 V marker (EXP-89) reads a fractional count through the same map:
+ * whole counts land on scope_vmap_y's row in every configuration, fractions
+ * fall between their neighbours, and a zero far off the window clamps to the
+ * band edge (below the window: the last row). */
+static void test_fractional_counts(void)
+{
+    scope_vmap_t ms[4];
+    scope_vmap_autofit(&ms[0], 40, 200, TOP, TRACE_BOT, FULL_H);
+    scope_vmap_autofit(&ms[1], 45, 48, TOP, MID - 1, FULL_H);      /* quiet, zoomed */
+    scope_vmap_fixed(&ms[2], TOP, TRACE_BOT, MID, 128u, FULL_H);
+    scope_vmap_fixed(&ms[3], MID + 1, TRACE_BOT, (MID + 1 + TRACE_BOT) / 2, 128u, FULL_H);
+    scope_vmap_offset(&ms[3], 13);
+    for (unsigned k = 0; k < 4; k++) {
+        const scope_vmap_t *m = &ms[k];
+        int bad = 0;
+        for (int v = 0; v <= 255; v++)
+            if (scope_vmap_y_counts(m, (float)v) != scope_vmap_y(m, (uint8_t)v)) bad++;
+        CHECK(bad == 0, "map %u: %d whole counts on a different row", k, bad);
+        for (int v = 0; v < 255; v++) {
+            const int a = scope_vmap_y(m, (uint8_t)v), b = scope_vmap_y(m, (uint8_t)(v + 1));
+            const int f = scope_vmap_y_counts(m, (float)v + 0.5f);
+            if (!(f <= a && f >= b)) { bad++; break; }
+        }
+        CHECK(bad == 0, "map %u: a half count is not between its neighbours", k);
+        CHECK(scope_vmap_y_counts(m, -1.0e6f) == m->y_bot - 1, "map %u: far below -> %d", k,
+              scope_vmap_y_counts(m, -1.0e6f));
+        CHECK(scope_vmap_y_counts(m, 1.0e6f) == m->y_top, "map %u: far above -> %d", k,
+              scope_vmap_y_counts(m, 1.0e6f));
+    }
+    /* Zoomed in, a fraction moves the row: 45.0 and 46.5 differ. */
+    CHECK(scope_vmap_y_counts(&ms[1], 45.0f) > scope_vmap_y_counts(&ms[1], 46.5f) + 3,
+          "zoomed: 45.0 on %d, 46.5 on %d", scope_vmap_y_counts(&ms[1], 45.0f),
+          scope_vmap_y_counts(&ms[1], 46.5f));
+}
+
 int main(void)
 {
+    test_fractional_counts();
     test_reference_row();
     test_offset_moves_without_rescaling();
     test_quiet_record_is_not_magnified();

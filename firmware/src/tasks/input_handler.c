@@ -492,8 +492,20 @@ static void scope_vertical_key(scope_state_t *ss, int dir, QueueHandle_t dq)
          * inert-controls lesson is to report the wire, not the setter's
          * intent. */
         const bool lv_ok = fpga_apply_trigger_level(ss->trigger.level);
-        snprintf(pb, sizeof(pb), lv_ok ? "Trig %+d  code %u" : "Trig %+d  NOT SET",
-                 ss->trigger.level, (unsigned)fpga_acq_trig_code_get());
+        /* In volts at the source's probe tip where the range is calibrated
+         * (EXP-89), from the code in force; the code otherwise. */
+        float tv;
+        char vb[12];
+        if (!lv_ok) {
+            snprintf(pb, sizeof(pb), "Trig %+d  NOT SET", ss->trigger.level);
+        } else if (scope_trigger_level_volts(&tv)) {
+            scope_cal_format_volts(tv, vb, sizeof(vb));
+            snprintf(pb, sizeof(pb), "Trig %s  CH%u", vb,
+                     ss->trigger.source == TRIG_SRC_CH2 ? 2u : 1u);
+        } else {
+            snprintf(pb, sizeof(pb), "Trig %+d  code %u",
+                     ss->trigger.level, (unsigned)fpga_acq_trig_code_get());
+        }
         scope_show_popup(pb);
         send_cmd(dq, DCMD_SCOPE_LIVE);
         return;

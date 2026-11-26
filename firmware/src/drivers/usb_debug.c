@@ -3492,15 +3492,50 @@ static void cmd_fpga_scope_measure(const char *args)
  * rebuild, deliberately, because a runtime-adjustable gain that nobody
  * records is how an instrument ends up lying with confidence.
  */
+/* `fpga scope zero` (EXP-89): the zero in force, per channel, and the
+ * trigger level in volts. Live state, so it is NOT part of `fpga scope cal`
+ * (whose table must not change with a UI setting; coupling_bench.py diffs
+ * it across a probe change). */
+static void cmd_fpga_scope_zero(void)
+{
+    const scope_state_t *ss = scope_state_get();
+    for (uint8_t ch = 1u; ch <= 2u; ch++) {
+        const uint8_t r = (ch == 2u) ? ss->ch2.vdiv_idx : ss->ch1.vdiv_idx;
+        const uint16_t code = (ch == 2u) ? scope_trigger_ch2_last() : scope_trigger_dac_last();
+        float z = 0.0f;
+        if (code == 0u || !scope_cal_zero_counts(ch, r, code, &z)) {
+            usb_debug_printf("CH%u range %u  offset ref never armed: no zero\r\n", ch, r);
+            continue;
+        }
+        const int zc = (int)(z * 100.0f + (z < 0.0f ? -0.5f : 0.5f));
+        const unsigned az = (unsigned)(zc < 0 ? -zc : zc);
+        usb_debug_printf("CH%u range %u  %s %u  zero %s%u.%02u counts\r\n", ch, r,
+                         ch == 2u ? "TMR13" : "DAC1", (unsigned)code,
+                         zc < 0 ? "-" : "", az / 100u, az % 100u);
+    }
+    const uint8_t tc = fpga_acq_trig_code_get();
+    float tv;
+    char vb[12];
+    if (scope_trigger_level_volts(&tv)) {
+        scope_cal_format_volts(tv, vb, sizeof(vb));
+        const int mv = (int)(tv * 1000.0f + (tv < 0.0f ? -0.5f : 0.5f));
+        usb_debug_printf("trigger CH%u  code %u (fires at record %d)  level %s  mv %d\r\n",
+                         ss->trigger.source == TRIG_SRC_CH2 ? 2u : 1u, (unsigned)tc,
+                         (int)tc + (int)FPGA_ADC_OFFSET, vb, mv);
+    } else {
+        usb_debug_printf("trigger code %u: no volts on this range\r\n", (unsigned)tc);
+    }
+}
+
 static void cmd_fpga_scope_cal(void)
 {
-    usb_send_str("vertical cal (bench unit #1, EXP-08 2026-08-17)\r\n");
+    usb_send_str("vertical cal (my unit: gain EXP-83/84, zero EXP-89, 2026-11-26)\r\n");
     usb_debug_printf("source scale %d.%03d  counts/div %d\r\n",
                      (int)SCOPE_CAL_SOURCE_SCALE,
                      (int)((SCOPE_CAL_SOURCE_SCALE - (int)SCOPE_CAL_SOURCE_SCALE)
                            * 1000.0f + 0.5f),
                      (int)SCOPE_CAL_COUNTS_PER_DIV);
-    usb_send_str("rng  CH1 uV/ct  CH1 V/div  CH2 uV/ct  CH2 V/div  tier\r\n");
+    usb_send_str("rng  CH1 uV/ct  CH1 V/div  CH2 uV/ct  CH2 V/div  zero1  zero2  tier\r\n");
 
     for (uint8_t r = 0; r < SCOPE_CAL_RANGE_COUNT; r++) {
         char l1[12], l2[12];
@@ -3510,17 +3545,37 @@ static void cmd_fpga_scope_cal(void)
         const scope_cal_tier_t t = scope_cal_get_tier(1u, r);
         const char *tn = (t == SCOPE_CAL_MEASURED)    ? "measured"
                        : (t == SCOPE_CAL_PROVISIONAL) ? "provisional"
-                                                      : "none (rails)";
+                                                      : "none (no gain)";
 
         /* Microvolts per count keeps this integer-only — the shell printf is
          * not guaranteed to carry %f on every build. */
-        usb_debug_printf("%2u  %9lu  %9s  %9lu  %9s  %s\r\n",
+        /* 0 V in counts with the offset reference at SCOPE_CAL_ZERO_REF_CODE:
+         * the table, not the state in force (that is `fpga scope zero`). */
+        float z1 = 0.0f, z2 = 0.0f;
+        scope_cal_zero_counts(1u, r, SCOPE_CAL_ZERO_REF_CODE, &z1);
+        scope_cal_zero_counts(2u, r, SCOPE_CAL_ZERO_REF_CODE, &z2);
+        const unsigned c1 = (unsigned)(z1 * 100.0f + 0.5f), c2 = (unsigned)(z2 * 100.0f + 0.5f);
+        usb_debug_printf("%2u  %9lu  %9s  %9lu  %9s  %2u.%02u  %2u.%02u  %s\r\n",
                          (unsigned)r,
                          (unsigned long)(scope_cal_mv_per_count(1u, r) * 1000.0f + 0.5f),
                          l1,
                          (unsigned long)(scope_cal_mv_per_count(2u, r) * 1000.0f + 0.5f),
                          l2,
+                         c1 / 100u, c1 % 100u, c2 / 100u, c2 % 100u,
                          tn);
+    }
+    {
+        /* The model's slope, read back from the model: counts per 1000 codes. */
+        float a1 = 0.0f, b1 = 0.0f, a2 = 0.0f, b2 = 0.0f;
+        scope_cal_zero_counts(1u, 5u, SCOPE_CAL_ZERO_REF_CODE, &a1);
+        scope_cal_zero_counts(1u, 5u, SCOPE_CAL_ZERO_REF_CODE + 1000u, &b1);
+        scope_cal_zero_counts(2u, 5u, SCOPE_CAL_ZERO_REF_CODE, &a2);
+        scope_cal_zero_counts(2u, 5u, SCOPE_CAL_ZERO_REF_CODE + 1000u, &b2);
+        const unsigned k1 = (unsigned)((b1 - a1) * 100.0f + 0.5f);   /* hundredths */
+        const unsigned k2 = (unsigned)((b2 - a2) * 100.0f + 0.5f);
+        usb_debug_printf("zero = ADC count of 0 V with the offset ref at code %u; it moves "
+                         "%u.%02u (CH1) / %u.%02u (CH2) counts per 1000 codes\r\n",
+                         (unsigned)SCOPE_CAL_ZERO_REF_CODE, k1 / 100u, k1 % 100u, k2 / 100u, k2 % 100u);
     }
 
     usb_debug_printf("table is at the BNC; on-screen volts are at the probe tip: "
@@ -8406,6 +8461,8 @@ static const shell_cmd_t shell_cmds[] = {
           "fpga wire scope [ch1|ch2|both] Wire-word entry + runtime scope blocks\r\n"),
     CMD_A("fpga scope range", cmd_fpga_scope_range, SC_NEEDARGS,
           "fpga scope range <0-9> <1|2|both>  Coarse frontend range; channel is MANDATORY\r\n"),
+    CMD_V("fpga scope zero", cmd_fpga_scope_zero, SC_EXACT,
+          "fpga scope zero                 0 V in counts per channel, trigger level in volts\r\n"),
     CMD_V("fpga scope cal", cmd_fpga_scope_cal, SC_EXACT,
           "fpga scope cal                  Dump the compiled vertical cal table (mV/count, V/div, tier)\r\n"),
     CMD_A("fpga scope vdiv", cmd_fpga_scope_vdiv, 0,

@@ -168,6 +168,11 @@ void scope_ui_mask_slot_refresh(void);
 /* Repaint the measurement badges (main.c, after a volts/div or time/div
  * change: those ride the live compositor, which does not draw the badges). */
 void scope_ui_badges_refresh(void);
+/* Channel ch's (1/2) 0 V in ADC counts at its range and offset code in
+ * force, and the trigger level in volts at the source's probe tip (EXP-89).
+ * False when there is no calibration to say it with. */
+bool scope_chan_zero_counts(uint8_t ch, float *out);
+bool scope_trigger_level_volts(float *out);
 uint8_t scope_ui_trig_anchor(void);
 extern fft_result_t     fft_result;
 #endif

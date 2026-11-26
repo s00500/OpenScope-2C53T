@@ -50,8 +50,8 @@ static int failures = 0;
  * the tables so that retiering a row without revisiting these tests shows up
  * as a failure rather than as a silently weaker test. */
 static const uint8_t measured_codes[]  = { 0x0Eu, 0x0Fu, 0x10u };
-static const uint8_t measured_ranges[] = { 5u, 6u, 7u };
-static const uint8_t provisional_ranges[] = { 4u, 8u, 9u };
+static const uint8_t measured_ranges[] = { 3u, 4u, 5u, 6u, 7u };     /* 3/4: EXP-89 */
+static const uint8_t provisional_ranges[] = { 2u, 8u, 9u };       /* 2: EXP-89 */
 
 /* A believable vertical transform: the fixed ("true volts/div") render path
  * maps 256 counts across the 206-px plot. Autofit produces a different number
@@ -194,7 +194,7 @@ static void test_unmeasured_timebase_falls_back_to_samples(void)
 static void test_uncalibrated_range_falls_back_to_counts(void)
 {
     for (uint8_t ch = 1; ch <= 2; ch++) {
-        for (uint8_t rg = 0; rg <= 3; rg++) {
+        for (uint8_t rg = 0; rg <= 1; rg++) {      /* 2/3 have gains since EXP-89 */
             CHECK(scope_cal_volts_per_count(ch, rg) == 0.0f,
                   "ch%u r%u was supposed to be uncalibrated", ch, rg);
 

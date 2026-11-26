@@ -12,10 +12,10 @@
  * ---------------------------
  * Since 2026-11-26: EXP-83 (CH1) and EXP-84 (CH2), my unit. The onboard
  * generator's DC levels into each input by a cable, its volts taken from a
- * self-calibrated Rigol DS1104Z (EXP-80). The tiers kept their ranges (5/6/7
- * MEASURED, 4/8/9 PROVISIONAL, 0-3 NONE) but not their reasons: scope_cal.c
- * gives the per-range evidence of that run. The rest of this section, the
- * tier text included, is the history.
+ * self-calibrated Rigol DS1104Z (EXP-80). EXP-89 added ranges 2 and 3 and
+ * re-measured 4: now 3-7 MEASURED, 2/8/9 PROVISIONAL, 0-1 NONE; scope_cal.c
+ * gives the per-range evidence. The rest of this section, the tier text
+ * included, is the history.
  *
  * Before: docs/experiments/2026-08-17-08-per-range-gain-ladders.md, bench unit #1.
  * Slope method: span measured at five drive amplitudes per range, mVpp
@@ -100,6 +100,7 @@
 #ifndef SCOPE_CAL_H
 #define SCOPE_CAL_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -213,6 +214,49 @@ void scope_cal_range_label(uint8_t ch, uint8_t range_idx, char *out, uint32_t n)
  * dump (`fpga scope cal`), whose table must not change with a UI setting
  * (EXP-70 addendum: the first probe build moved that column). */
 void scope_cal_range_label_bnc(uint8_t ch, uint8_t range_idx, char *out, uint32_t n);
+
+/*
+ * THE ZERO: where 0 V at the BNC lands in ADC counts (EXP-89, 2026-11-26).
+ *
+ * The gain above turns a DIFFERENCE of counts into volts. An absolute volt
+ * (a trigger level, a DC level, a 0 V marker) also needs the count that
+ * means 0 V. That count is set by the channel's vertical-offset reference,
+ * DAC1/PA4 for CH1 and TMR13/PA6 for CH2, both 12-bit codes, and it moves
+ * by a fixed amount per code that is the same on every range (the offset is
+ * injected behind the attenuator):
+ *
+ *     zero(ch, range, code) = zero_ref[ch][range] + k[ch] x (code - 2048)
+ *
+ * Measured on my unit with the input shorted, DC coupling, 4 records per
+ * point: zero_ref 40.7..48.8 counts, k = 0.1214 (CH1) / 0.1220 (CH2)
+ * counts per code; the model meets every point within 0.29 counts, over
+ * 2048..3072 (CH1's 1536 rails low). The zero
+ * is known to about +-0.3 counts (the ranges disagree by that much, more
+ * than their noise allows: a quiet 8-bit input barely dithers), about 1 % of
+ * a division. In AC coupling the same count is the signal's average, which is
+ * what an AC-coupled volt means. Per-unit, like the gains.
+ */
+#define SCOPE_CAL_ZERO_REF_CODE    2048u
+
+/* 0 V in counts for this (channel, range) with the offset reference at
+ * `offset_code`. False (and *out untouched) for an out-of-domain channel or
+ * range. */
+bool scope_cal_zero_counts(uint8_t ch, uint8_t range_idx, uint16_t offset_code, float *out);
+
+/* A record value as volts AT THE PROBE TIP: (counts - zero) x volts/count.
+ * False when the range has no gain (tier NONE) or the arguments are out of
+ * domain: no absolute volt without both halves. */
+bool scope_cal_counts_to_volts(uint8_t ch, uint8_t range_idx, uint16_t offset_code,
+                               float counts, float *out);
+
+/* The offset code that puts 0 V at `counts` on this (channel, range), rounded
+ * and clamped to 0..4095. Out-of-domain arguments return the reference code. */
+uint16_t scope_cal_offset_for_zero(uint8_t ch, uint8_t range_idx, float counts);
+
+/* Volts as a short signed label, "+1.23V", "-45mV", "+12.3V", "0mV". Always
+ * NUL-terminated; 8 bytes is enough below 1000 V. No %f in the firmware's
+ * printf, so integer maths. */
+void scope_cal_format_volts(float v, char *out, uint32_t n);
 
 #ifdef __cplusplus
 }

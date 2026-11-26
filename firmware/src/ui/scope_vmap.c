@@ -67,6 +67,29 @@ int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v)
     return (int16_t)yy;
 }
 
+int16_t scope_vmap_y_counts(const scope_vmap_t *m, float v)
+{
+    /* The integer path's arithmetic in float: the offset in rows is
+     * truncated toward zero exactly as C's integer division is, so a whole
+     * count lands on the same row. Bounded first: a zero far off the window
+     * must clamp, not overflow the cast. */
+    float d;
+    int   base;
+    if (m->fixed) {
+        d = (v - (float)m->center) * (float)m->full_h / 256.0f;
+        base = m->y_mid;
+    } else {
+        d = (v - (float)m->mn) * (float)m->h / (float)m->span;
+        base = m->y_bot - 2;
+    }
+    if (d >  4096.0f) d =  4096.0f;
+    if (d < -4096.0f) d = -4096.0f;
+    int yy = base - (int)d - m->y_off;
+    if (yy < m->y_top)  yy = m->y_top;
+    if (yy >= m->y_bot) yy = m->y_bot - 1;
+    return (int16_t)yy;
+}
+
 int16_t scope_vmap_ref_y(const scope_vmap_t *m)
 {
     int yy = m->fixed ? (int)m->y_mid : (int)(m->y_bot - 2) - m->h / 2;
