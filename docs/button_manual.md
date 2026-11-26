@@ -94,6 +94,14 @@ at the new setting (EXP-88).
 The V/div and time/div labels come from the measured tables (`scope_cal.c`,
 `scope_timebase.c`); a step without a measurement shows `--`.
 
+**Measurements.** The two rows under the trace measure the **active
+channel** (the one CH1/CH2 selected, named at the top left), in its colour:
+Freq, Vpp, Vrms, Duty, then Per; the last slot is the other channel's peak to
+peak (`CH1pp` or `CH2pp`). If the active channel is off they measure the other
+one. `--` means there is nothing to measure or the estimator refused (Freq
+answers only when the record supports it). Until 2026-11-26 the first row and
+Per were always CH1's.
+
 **Vertical scale.** By default every trace is drawn at the V/div its label
 shows: one grid division is that many volts, and 0 V sits on the middle of
 the channel's half of the screen (the middle of the screen when only one

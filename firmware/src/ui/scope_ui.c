@@ -608,7 +608,24 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
                        measure_live_channel(fpga_get_ch2_buf(), &m2);
     const uint16_t na = th->text_secondary;   /* dim: nothing to report */
 
-    /* ── Row 1 — CH1 ─────────────────────────────────────────────── */
+    /* Whose badges (2026-11-26): the ACTIVE channel's (CH1/CH2 select it, the
+     * top-left label names it), in its colour; the other one keeps its
+     * peak to peak in row 2. A channel that is off hands them to the other.
+     * Until then row 1 and Per were CH1's whatever was selected, so a signal
+     * on CH2 alone showed "--" for Freq. */
+    uint8_t mc = (active_channel == 1u) ? 2u : 1u;
+    if (!(mc == 2u ? ss->ch2.enabled : ss->ch1.enabled))
+        mc = (mc == 2u) ? 1u : 2u;
+    const uint8_t oc = (mc == 2u) ? 1u : 2u;
+    const scope_measure_t *mm = (mc == 2u) ? &m2 : &m1;
+    const scope_measure_t *mo = (mc == 2u) ? &m1 : &m2;
+    const bool havem = (mc == 2u) ? have2 : have1;
+    const bool haveo = (mc == 2u) ? have1 : have2;
+    const uint16_t colm = (mc == 2u) ? th->ch2 : th->ch1;
+    const uint16_t colo = (mc == 2u) ? th->ch1 : th->ch2;
+    const volatile uint8_t *bufm = (mc == 2u) ? fpga_get_ch2_buf() : fpga_get_ch1_buf();
+
+    /* ── Row 1 — the measured channel ───────────────────────────── */
     uint16_t x = 2;
     uint16_t y1 = BADGE_ROW_Y;
 
@@ -638,6 +655,12 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
      */
     static float    freq_hz;
     static uint16_t freq_stale;
+    static uint8_t  freq_ch;
+    if (freq_ch != mc) {            /* a held reading belongs to its channel */
+        freq_ch = mc;
+        freq_hz = 0.0f;
+        freq_stale = 0u;
+    }
     {
         /* timebase_idx IS the reg-0x01 code — fpga_stock_timebase_byte()
          * returns it unchanged, and status_bar.c reads it the same way. */
@@ -654,10 +677,10 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
                        "estimator window must match the capture buffer");
 
         bool fe = false;
-        if (have1) {
+        if (havem) {
             for (int attempt = 0; attempt < 3; attempt++) {
                 uint32_t g0 = fpga_acq_frame_generation();
-                fe = scope_freq_estimate((const uint8_t *)fpga_get_ch1_buf(),
+                fe = scope_freq_estimate((const uint8_t *)bufm,
                                          FPGA_ADC_BUF_SIZE, fs, &fr);
                 if ((g0 & 1u) == 0u && fpga_acq_frame_generation() == g0)
                     break;
@@ -674,7 +697,7 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
 
         if (freq_hz > 0.0f) {
             fmt_hz(buf, sizeof(buf), freq_hz);
-            draw_one_badge(x, y1, "Freq", buf, th->ch1, th);
+            draw_one_badge(x, y1, "Freq", buf, colm, th);
         } else {
             draw_one_badge(x, y1, "Freq", MEAS_NA, na, th);
         }
@@ -682,31 +705,32 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
     x += BADGE_W + 2;
 
     /* Calibrated ranges show volts; all others fall back to ADC counts. */
-    const float k1 = scope_cal_volts_per_count(1u, ss->ch1.vdiv_idx);
+    const float km = scope_cal_volts_per_count(mc, mc == 2u ? ss->ch2.vdiv_idx
+                                                            : ss->ch1.vdiv_idx);
 
-    if (have1) {
+    if (havem) {
         /* pp_robust, not pp: raw max-min is noise-inflated by +4..+10% of
          * the commanded amplitude (EXP-19) — see scope_measure.h. */
-        if (k1 > 0.0f) fmt_volts(buf, sizeof(buf), (float)m1.pp_robust * k1);
-        else           fmt_counts(buf, sizeof(buf), m1.pp_robust);
-        draw_one_badge(x, y1, "Vpp", buf, th->ch1, th);
+        if (km > 0.0f) fmt_volts(buf, sizeof(buf), (float)mm->pp_robust * km);
+        else           fmt_counts(buf, sizeof(buf), mm->pp_robust);
+        draw_one_badge(x, y1, "Vpp", buf, colm, th);
     } else {
         draw_one_badge(x, y1, "Vpp", MEAS_NA, na, th);
     }
     x += BADGE_W + 2;
 
-    if (have1) {
-        if (k1 > 0.0f) fmt_volts(buf, sizeof(buf), m1.ac_rms * k1);
-        else           fmt_counts(buf, sizeof(buf), (unsigned)(m1.ac_rms + 0.5f));
-        draw_one_badge(x, y1, "Vrms", buf, th->ch1, th);
+    if (havem) {
+        if (km > 0.0f) fmt_volts(buf, sizeof(buf), mm->ac_rms * km);
+        else           fmt_counts(buf, sizeof(buf), (unsigned)(mm->ac_rms + 0.5f));
+        draw_one_badge(x, y1, "Vrms", buf, colm, th);
     } else {
         draw_one_badge(x, y1, "Vrms", MEAS_NA, na, th);
     }
     x += BADGE_W + 2;
 
-    if (have1 && m1.level_valid) {
-        fmt_tenths(buf, sizeof(buf), m1.duty_pct, "%");
-        draw_one_badge(x, y1, "Duty", buf, th->ch1, th);
+    if (havem && mm->level_valid) {
+        fmt_tenths(buf, sizeof(buf), mm->duty_pct, "%");
+        draw_one_badge(x, y1, "Duty", buf, colm, th);
     } else {
         /* Flat/near-flat record: the mid-level threshold would be sitting
          * inside the noise, so a duty figure would be measuring dither. */
@@ -727,26 +751,31 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
          * badge, so the two can never disagree on the screen.
          */
         fmt_seconds(buf, sizeof(buf), 1.0f / freq_hz);
-        draw_one_badge(x, y2, "Per", buf, th->ch1, th);
-    } else if (have1 && m1.period_valid) {
+        draw_one_badge(x, y2, "Per", buf, colm, th);
+    } else if (havem && mm->period_valid) {
         /* No trustworthy Hz (unmeasured code, or the estimator declined and
          * the hold expired): fall back to the crossing count in honest
          * SAMPLES, never converted (EXP-13). */
         snprintf(buf, sizeof(buf), "%usmp",
-                 (unsigned)(m1.period_samples + 0.5f));
-        draw_one_badge(x, y2, "Per", buf, th->ch1, th);
+                 (unsigned)(mm->period_samples + 0.5f));
+        draw_one_badge(x, y2, "Per", buf, colm, th);
     } else {
         draw_one_badge(x, y2, "Per", MEAS_NA, na, th);
     }
     x += BADGE_W + 2;
 
-    if (have2) {
-        const float k2 = scope_cal_volts_per_count(2u, ss->ch2.vdiv_idx);
-        if (k2 > 0.0f) fmt_volts(buf, sizeof(buf), (float)m2.pp_robust * k2);
-        else           fmt_counts(buf, sizeof(buf), m2.pp_robust);
-        draw_one_badge(x, y2, "CH2pp", buf, th->ch2, th);
-    } else {
-        draw_one_badge(x, y2, "CH2pp", MEAS_NA, na, th);
+    /* The other channel's peak to peak, named, in its colour. */
+    {
+        const char *lab = (oc == 2u) ? "CH2pp" : "CH1pp";
+        if (haveo) {
+            const float ko = scope_cal_volts_per_count(oc, oc == 2u ? ss->ch2.vdiv_idx
+                                                                    : ss->ch1.vdiv_idx);
+            if (ko > 0.0f) fmt_volts(buf, sizeof(buf), (float)mo->pp_robust * ko);
+            else           fmt_counts(buf, sizeof(buf), mo->pp_robust);
+            draw_one_badge(x, y2, lab, buf, colo, th);
+        } else {
+            draw_one_badge(x, y2, lab, MEAS_NA, na, th);
+        }
     }
     x += BADGE_W + 2;
 

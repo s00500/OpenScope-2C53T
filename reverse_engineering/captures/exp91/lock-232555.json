@@ -1,0 +1,37 @@
+[
+ {
+  "hz": 1000,
+  "edge": "rising",
+  "kept": 0,
+  "dropped": 16,
+  "unknown": 11
+ },
+ {
+  "hz": 1000,
+  "edge": "falling",
+  "kept": 14,
+  "dropped": 0,
+  "unknown": 12
+ },
+ {
+  "hz": 1013,
+  "edge": "rising",
+  "kept": 15,
+  "dropped": 4,
+  "unknown": 7
+ },
+ {
+  "hz": 1013,
+  "edge": "falling",
+  "kept": 5,
+  "dropped": 13,
+  "unknown": 8
+ },
+ {
+  "hz": 997,
+  "edge": "rising",
+  "kept": 14,
+  "dropped": 8,
+  "unknown": 4
+ }
+]

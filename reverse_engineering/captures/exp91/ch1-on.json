@@ -1,0 +1,15 @@
+{
+ "label": "ch1-on",
+ "ch1": "on",
+ "edgefilter_before": "edge filter ON, edge Rising: kept 2 dropped 52 unclassified 14 (AUTO starved, shown anyway 24)",
+ "edgefilter_after": "edge filter ON, edge Rising: kept 2 dropped 63 unclassified 23 (AUTO starved, shown anyway 28)",
+ "state": {
+  "ch1.enabled": true,
+  "ch2.vdiv": 5,
+  "timebase": 8,
+  "trig.code": 151,
+  "trig.source": "ch2",
+  "trig.edge": "rising",
+  "trig.mode": "auto"
+ }
+}

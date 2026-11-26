@@ -4203,7 +4203,9 @@ static void fpga_warmtest_acq_task(void *pv)
                  * FPGA keeps triggering and the filter drops every record,
                  * it never expired and AUTO froze: my unit, CH1 off, a 1 kHz
                  * sine on CH2 at 0x08, the level inside it: PC0 +16 and
-                 * dropped +16 in 2 s, 0 commits. In AUTO, once nothing has
+                 * dropped +16 in 2 s, 0 commits. (EXP-91: CH1 is irrelevant;
+                 * our generator at a round frequency locks the FPGA onto one
+                 * edge, and a 0x08 record holds only that one.) In AUTO, once nothing has
                  * been committed for a whole budget, a dropped record is
                  * shown unfiltered (the soft trigger still aligns the
                  * display to the chosen edge). NORMAL/SINGLE keep holding. */
