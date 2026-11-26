@@ -42,6 +42,9 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 | aa165cc | exp(81): timebase codes 0x06..0x14 are the round ladder to 50 ppm | EXP-81 + `captures/exp81` | yes | evidence for PR #51 / #84 (a second and third unit on the same ladder) |
 | c42bbe9 | exp(83): CH1 gain per range (1-2-5 ladder), crosstalk, frequency badge | EXP-83 + `captures/exp83` | yes | evidence for a `scope_cal.c` revision (rows 4/8/9) |
 | ef70eba | cal: timebase (0x06-0x14) and gain tables (both channels, source scale 1.0) from EXP-81/83/84, guard tests rewritten; EXP-84 (TMR13/PA6 is CH2's offset reference) | `test-scope-timebase`, `test-scope-cal`, `test-scope-cursor`; fold test; screenshots | no | needs a maintainer decision upstream: it replaces unit #1's rows and overturns guards; overlaps PR #51 / #84's rows |
+| b8d9449 | emu: Renode 1.17 loads `gd32f307_2c53t.repl` (I2C model rename, SPI series); emulator build ignores the physical key scan; LCD model flushes on NOP | `make emu` + `scripts/emu_shot.py` on Renode 1.17.1 | not checked | candidate: small, emulator only |
+| 0b96edd | perf(lcd): shadow position stepped, colour cache direct-mapped (EXP-85) | live frame 85.4 -> 83.9 ms on my unit; screenshot checked | not checked | candidate |
+| c0611c3 | fix(scope): cursors, band labels and the readout through the live compositor; cursor keys via `DCMD_SCOPE_LIVE` and the gate's live epoch; popup sized to its text; cursor keys time view only; `display` reports draws and live-frame cost; emulator renders the live path (EXP-85) | EXP-85: cursors on 23 -> 0 full repaints per 10 s, cursor presses 0; `test-band-holes`, `test-redraw-gate` (cursor-drag mutant); all host tests, shell table, firmware build | not checked (scope_ui.c / main.c moved a lot upstream) | candidate after the user has looked at the glass |
 
 ## How to cut an upstream PR
 
