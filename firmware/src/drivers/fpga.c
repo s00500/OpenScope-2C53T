@@ -4198,7 +4198,20 @@ static void fpga_warmtest_acq_task(void *pv)
                 fpga.acq_edge_unknown++;
             } else if ((ec == TRIG_EDGE_CLASS_RISING) != want_rising) {
                 fpga.acq_edge_dropped++;
-                continue;
+                /* AUTO always shows something (2026-11-26). The fallback
+                 * budget runs from the last HANDOVER (EXP-72), so while the
+                 * FPGA keeps triggering and the filter drops every record,
+                 * it never expired and AUTO froze: my unit, CH1 off, a 1 kHz
+                 * sine on CH2 at 0x08, the level inside it: PC0 +16 and
+                 * dropped +16 in 2 s, 0 commits. In AUTO, once nothing has
+                 * been committed for a whole budget, a dropped record is
+                 * shown unfiltered (the soft trigger still aligns the
+                 * display to the chosen edge). NORMAL/SINGLE keep holding. */
+                const bool starved = auto_mode &&
+                    (int32_t)(last_read_tick - last_commit_tick) >= (int32_t)fpga_acq_auto_wait_get();
+                if (!starved)
+                    continue;
+                fpga.acq_edge_starved++;
             } else {
                 fpga.acq_edge_kept++;
             }

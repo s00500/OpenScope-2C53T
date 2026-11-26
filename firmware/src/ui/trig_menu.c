@@ -1,6 +1,8 @@
 /* See trig_menu.h. Adapted from deOliveira-R's f4dfc23 (parity C3). */
 #include "trig_menu.h"
 
+#include <stdio.h>
+
 trig_menu_t scope_trig_menu;
 
 void trig_menu_open(trig_menu_t *m)
@@ -42,6 +44,8 @@ uint8_t trig_menu_change(const trig_menu_t *m, scope_state_t *ss, int dir)
         ss->trigger.source = to;
         return TM_CHANGED_SOURCE;
     }
+    case TM_ROW_MASK:
+        return TM_MASK_KEY;            /* one action either way: the caller's */
     default:
         return 0;
     }
@@ -53,6 +57,7 @@ const char *trig_menu_row_label(uint8_t row)
     case TM_ROW_MODE:   return "Mode:";
     case TM_ROW_EDGE:   return "Edge:";
     case TM_ROW_SOURCE: return "Channel:";
+    case TM_ROW_MASK:   return "Mask:";
     default:            return "";
     }
 }
@@ -72,6 +77,17 @@ const char *trig_menu_row_value(const scope_state_t *ss, uint8_t row)
     default:
         return "";
     }
+}
+
+void trig_menu_mask_value(uint8_t state, uint16_t got, uint16_t target,
+                          char *out, uint32_t n)
+{
+    if (out == NULL || n == 0u)
+        return;
+    if (state == 1u)
+        snprintf(out, n, "Teach %u/%u", (unsigned)got, (unsigned)target);
+    else
+        snprintf(out, n, "%s", state == 2u ? "On" : "Off");
 }
 
 chan_key_action_t chan_key_decide(uint8_t ch, uint8_t active,

@@ -114,8 +114,8 @@ position, and cursors took all four arrows whenever they were on.
 
 | Key while the panel is open | Action |
 |-----|--------|
-| **UP/DOWN** | Pick the row: Mode, Edge, Channel |
-| **LEFT/RIGHT**, **OK** | Change it: Mode Auto / Normal / Single, Edge Rising / Falling, Channel CH1 / CH2 |
+| **UP/DOWN** | Pick the row: Mode, Edge, Channel, Mask |
+| **LEFT/RIGHT**, **OK** | Change it: Mode Auto / Normal / Single, Edge Rising / Falling, Channel CH1 / CH2; on Mask, the mask key (below) |
 | **TRIGGER**, **MENU** | Close the panel |
 | any other key | Closes the panel and does nothing else |
 
@@ -130,11 +130,52 @@ Oscilloscope. In the FFT views TRIGGER still cycles the mode.
 |--------|--------|
 | **OK** | Toggle Run / Stop (or, while a mask failure is held, resume testing) |
 
+### Autoset (AUTO, time view)
+
+**AUTO** sets the scope up for whatever is on the inputs, like the AUTO key
+of a bench scope (and of stock firmware). It takes 2 to 7 seconds; a popup
+says `Autoset...` and then what it chose, e.g. `Auto: CH2 1.26V 256us`.
+Pressing AUTO again stops it, and any other key stops it too (the settings
+stay where it got to).
+
+- **V/div**, per channel that is on: the most sensitive range on which the
+  signal fits the converter and about 85 % of the channel's space (its half
+  of the screen with both on, 2.8 divisions; the whole trace area alone, 5.5).
+  Its **Position** then puts the signal's middle on the middle of that space.
+- **Time/div**: from the signal's frequency, the timebase showing about 3
+  cycles. It counts cycles at 5 MS/s, 500 kS/s, 50 kS/s, 5 kS/s and 500 S/s,
+  fastest first, so a fast signal is never counted aliased. A DC level keeps
+  the timebase it had.
+- **Trigger**: the channel with a signal becomes the source (the current one
+  if both have one), the level goes to the middle of its signal, the mode to
+  Auto. The edge is kept.
+- A channel with nothing on it (under 20 mV of swing and within 50 mV of
+  0 V) goes to range 5 with 0 V on its flag. With nothing on either: the popup
+  says `Autoset: no signal` and the timebase is kept.
+
+It uses the calibrated V/div and 0 V (EXP-83/84/89), so it is only as good as
+those: ranges 0 and 1 have no calibration and are never chosen. In the FFT
+views AUTO still auto-configures the spectrum; in the meter it picks the
+function.
+
 ### Mask pass/fail (time view)
 
-| Button | Action |
+**What a mask is.** You show the scope a waveform you know is good and tell it
+to learn it ("teach"). It takes the next 8 good captures and records, for
+every column of the screen, the lowest and highest value the trace had there,
+plus a small tolerance: that band is the mask, drawn as two dotted lines
+around the trace. From then on every new capture is compared with it: if
+every point stays inside the band, the capture is a **PASS**; if any point
+leaves it, it is a **FAIL** and the columns that broke it turn red. The
+instrument counts passes and fails, and can stop on the first failure and hold
+the bad capture on the screen. It is the tool for catching a glitch that
+happens once in a thousand cycles, or for checking that a waveform still looks
+like the good one (a sensor signal, a clock, a PWM). Bench scopes call it
+"Pass/Fail" or "Mask Test".
+
+| Key | Action |
 |--------|--------|
-| **AUTO** | No mask: teach one from the next 8 good captures. Teaching: cancel. Mask ready: turn it off |
+| **TRIGGER**, then the **Mask** row, **OK** (or LEFT/RIGHT) | No mask: teach one from the next 8 good captures. Teaching: cancel. Mask ready: turn it off. The row shows `Off`, `Teach n/8` or `On` (until 2026-11-26 this was the AUTO key) |
 | **MOVE** -> *Mask* | Adjust tolerances and stop-on-fail (MOVE table above) |
 | **OK** | Resume after a held failure |
 
@@ -163,7 +204,7 @@ The arrows move the cursors only in MOVE's Cursors mode (the tag says so). In th
 | **SELECT** | Cycle FFT window function (in FFT/Split/Waterfall views) |
 | **UP/DOWN** | Adjust reference level (+/- 5dB, in FFT views) |
 | **LEFT/RIGHT** | Zoom in/out frequency range (in FFT views) |
-| **AUTO** | Auto-configure FFT (in FFT views; in the time view AUTO is the mask key) |
+| **AUTO** | Auto-configure FFT (in FFT views; in the time view AUTO is the autoset) |
 
 Note: Entering an FFT view claims the shared memory pool (88KB). Returning to time view releases it.
 
@@ -401,7 +442,8 @@ Shows device info, pool status, heap free, license. **MENU** or **OK** to go bac
 | SELECT | Cursor mode      | Softkey (Reset)  | Cycle waveform   | Cycle comp type  |
 | MOVE   | Arrow-key mode   | Softkey (Func.)  |        -         |        -         |
 | TRIGGER| Trigger panel    | Softkey (Rel.)   |        -         |        -         |
-| AUTO   | FFT auto-config  | Auto function    |        -         |        -         |
+| AUTO   | Autoset (FFT:    | Auto function    |        -         |        -         |
+|        |  auto-config)    |                  |                  |                  |
 | SAVE   | Screenshot       | Debug overlay    | Screenshot       | Screenshot       |
 +--------+------------------+------------------+------------------+------------------+
 

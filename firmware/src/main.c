@@ -28,6 +28,7 @@ extern void system_clock_config(void);
 #include "scope_cal.h"
 #include "trig_menu.h"
 #include "input_handler.h"
+#include "scope_autoset.h"
 #include "remote_ops.h"
 #include "theme.h"
 #include "math_channel.h"
@@ -1064,6 +1065,9 @@ static void vInputTask(void *pvParameters)
             else
                 input_handle_button(pressed, xDisplayQueue);
         }
+
+        /* One autoset step when a fresh capture is in (never blocks). */
+        scope_autoset_service(xDisplayQueue);
 
         /* Check in with health monitor */
         health_checkin(health_slot_input);

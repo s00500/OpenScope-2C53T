@@ -50,6 +50,7 @@
 #include "meter_autoselect.h"
 #include "meter_data.h"
 #include "ui.h"
+#include "../tasks/scope_autoset.h"
 #include "../ui/scope_state.h"
 #include "../util/settings_store.h"
 #include "../ui/scope_cal.h"
@@ -2750,11 +2751,12 @@ static void cmd_fpga_edgefilter(const char *args)
         else { usb_send_str("usage: fpga edgefilter [on|off]\r\n"); return; }
     }
     const scope_state_t *ss = scope_state_get();
-    usb_debug_printf("edge filter %s, edge %s: kept %lu dropped %lu unclassified %lu\r\n",
+    usb_debug_printf("edge filter %s, edge %s: kept %lu dropped %lu unclassified %lu"
+                     " (AUTO starved, shown anyway %lu)\r\n",
                      fpga_acq_edge_filter_get() ? "ON" : "OFF",
                      trigger_edge_labels[ss->trigger.edge],
                      (unsigned long)fpga.acq_edge_kept, (unsigned long)fpga.acq_edge_dropped,
-                     (unsigned long)fpga.acq_edge_unknown);
+                     (unsigned long)fpga.acq_edge_unknown, (unsigned long)fpga.acq_edge_starved);
 }
 
 /* `fpga holdread` — retired by EXP-54: the read that strobes PC0 is the record. */
@@ -3492,6 +3494,14 @@ static void cmd_fpga_scope_measure(const char *args)
  * rebuild, deliberately, because a runtime-adjustable gain that nobody
  * records is how an instrument ends up lying with confidence.
  */
+/* `fpga scope autoset` (2026-11-26): the autoset's state, one line. */
+static void cmd_fpga_scope_autoset(void)
+{
+    char b[200];
+    scope_autoset_status(b, sizeof b);
+    usb_debug_printf("%s\r\n", b);
+}
+
 /* `fpga scope zero` (EXP-89): the zero in force, per channel, and the
  * trigger level in volts. Live state, so it is NOT part of `fpga scope cal`
  * (whose table must not change with a UI setting; coupling_bench.py diffs
@@ -8461,6 +8471,8 @@ static const shell_cmd_t shell_cmds[] = {
           "fpga wire scope [ch1|ch2|both] Wire-word entry + runtime scope blocks\r\n"),
     CMD_A("fpga scope range", cmd_fpga_scope_range, SC_NEEDARGS,
           "fpga scope range <0-9> <1|2|both>  Coarse frontend range; channel is MANDATORY\r\n"),
+    CMD_V("fpga scope autoset", cmd_fpga_scope_autoset, SC_EXACT,
+          "fpga scope autoset              The autoset's state (AUTO key), one line\r\n"),
     CMD_V("fpga scope zero", cmd_fpga_scope_zero, SC_EXACT,
           "fpga scope zero                 0 V in counts per channel, trigger level in volts\r\n"),
     CMD_V("fpga scope cal", cmd_fpga_scope_cal, SC_EXACT,

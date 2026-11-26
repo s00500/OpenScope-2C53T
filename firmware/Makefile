@@ -47,6 +47,8 @@ C_SOURCES += src/ui/scope_state.c
 C_SOURCES += src/ui/trig_menu.c
 C_SOURCES += src/ui/scope_measure.c
 C_SOURCES += src/ui/scope_cal.c
+C_SOURCES += src/ui/autoset.c
+C_SOURCES += src/tasks/scope_autoset.c
 C_SOURCES += src/ui/scope_timebase.c
 C_SOURCES += src/ui/scope_cursor.c
 C_SOURCES += src/ui/scope_freq.c
@@ -702,6 +704,12 @@ $(BUILD_DIR)/test_trig_menu: tests/test_trig_menu.c src/ui/trig_menu.c src/ui/tr
 test-trig-menu: $(BUILD_DIR)/test_trig_menu
 	$<
 
+$(BUILD_DIR)/test_autoset: tests/test_autoset.c src/ui/autoset.c src/ui/autoset.h src/ui/scope_cal.c src/ui/scope_timebase.c | $(BUILD_DIR)
+	$(HOST_CC) -std=gnu11 -Wall -Wextra -Isrc/ui $< src/ui/autoset.c src/ui/scope_cal.c src/ui/scope_timebase.c -lm -o $@
+
+test-autoset: $(BUILD_DIR)/test_autoset
+	$<
+
 # MOVE modes (2026-11-26): what the arrow keys do in the scope's time view.
 $(BUILD_DIR)/test_move_mode: tests/test_move_mode.c src/ui/move_mode.h | $(BUILD_DIR)
 	$(HOST_CC) -std=gnu11 -Wall -Wextra -Werror -Isrc/ui $< -o $@
@@ -773,7 +781,7 @@ $(BUILD_DIR)/test_siggen: tests/test_siggen.c src/dsp/siggen_wave.c src/dsp/sigg
 test-siggen: $(BUILD_DIR)/test_siggen
 	$<
 
-.PHONY: all clean disasm size renode soak-test soak-quick flash flash-dfu bootloader flash-bootloader flash-all guest guest-warmtest guest-usart-silent emu test-meter-data test-meter-auto test-meter-voltage-wave test-fpga-meter-plan test-stock-meter-literals test-meter test-scope-measure test-scope-cal test-scope-timebase test-scope-freq test-redraw-gate test-band-holes test-trig-menu test-move-mode test-display-trace test-scope-vmap test-fft-live test-trig-edge test-acq-gate test-mask-pf test-siggen test-fuse test-config-persist guest-persist guest-caldump guest-coldtrace-slow guest-coldtrace-la guest-debugclk guest-configA-gap guest-configA-csdummy guest-configA-gapless guest-bringup guest-bringup-bb guest-bringup-bb-slow guest-coldtrace-hwspi guest-bringup-bb-faithful fpga-alt-header guest-coldtrace-meter test-bode test-shmem-layout
+.PHONY: test-autoset all clean disasm size renode soak-test soak-quick flash flash-dfu bootloader flash-bootloader flash-all guest guest-warmtest guest-usart-silent emu test-meter-data test-meter-auto test-meter-voltage-wave test-fpga-meter-plan test-stock-meter-literals test-meter test-scope-measure test-scope-cal test-scope-timebase test-scope-freq test-redraw-gate test-band-holes test-trig-menu test-move-mode test-display-trace test-scope-vmap test-fft-live test-trig-edge test-acq-gate test-mask-pf test-siggen test-fuse test-config-persist guest-persist guest-caldump guest-coldtrace-slow guest-coldtrace-la guest-debugclk guest-configA-gap guest-configA-csdummy guest-configA-gapless guest-bringup guest-bringup-bb guest-bringup-bb-slow guest-coldtrace-hwspi guest-bringup-bb-faithful fpga-alt-header guest-coldtrace-meter test-bode test-shmem-layout
 
 # Bode sweep maths (step frequency, gain/phase, -3 dB bandwidth) and
 # bode_init(), which since the 2026-11-11 RAM diet fills a caller-owned result

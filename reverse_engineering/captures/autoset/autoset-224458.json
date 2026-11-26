@@ -1,0 +1,136 @@
+[
+ {
+  "case": "sine-1k",
+  "start": {
+   "ch2.vdiv": "9",
+   "timebase": "0x08"
+  },
+  "want": {
+   "ch2.vdiv": 6,
+   "timebase": 13,
+   "ch1.vdiv": 5,
+   "trig.source": "ch2"
+  },
+  "got": {
+   "ch1.vdiv": 5,
+   "ch2.vdiv": 6,
+   "timebase": 13,
+   "trig.source": "ch2",
+   "trig.level": -10,
+   "trig.mode": "auto",
+   "trig.code": 116,
+   "ch1.enabled": true,
+   "ch2.enabled": true
+  },
+  "seconds": 2.3349788188934326,
+  "status": "phase off iter 1 fidx 2/5 hz 1029 src 2 tb 0x0D | ch1 r5 pp 1mV mid 44 sig 0 set 1 | ch2 r6 pp 2993mV mid 88 sig 1 set 1 | gen 634 wait 628",
+  "pass": true
+ },
+ {
+  "case": "square-20k",
+  "start": {
+   "ch2.vdiv": "2",
+   "timebase": "0x14"
+  },
+  "want": {
+   "ch2.vdiv": 6,
+   "timebase": 9,
+   "ch1.vdiv": 5,
+   "trig.source": "ch2"
+  },
+  "got": {
+   "ch1.vdiv": 5,
+   "ch2.vdiv": 6,
+   "timebase": 9,
+   "trig.source": "ch2",
+   "trig.level": -10,
+   "trig.mode": "auto",
+   "trig.code": 116,
+   "ch1.enabled": true,
+   "ch2.enabled": true
+  },
+  "seconds": 4.3794097900390625,
+  "status": "phase off iter 3 fidx 0/5 hz 20661 src 2 tb 0x09 | ch1 r5 pp 1mV mid 44 sig 0 set 1 | ch2 r6 pp 3111mV mid 87 sig 1 set 1 | gen 744 wait 742",
+  "pass": true
+ },
+ {
+  "case": "dc-1v5",
+  "start": {
+   "ch2.vdiv": "9",
+   "timebase": "0x0E"
+  },
+  "want": {
+   "ch2.vdiv": 5,
+   "timebase": 14,
+   "ch1.vdiv": 5,
+   "trig.source": "ch2"
+  },
+  "got": {
+   "ch1.vdiv": 5,
+   "ch2.vdiv": 5,
+   "timebase": 14,
+   "trig.source": "ch2",
+   "trig.level": 19,
+   "trig.mode": "auto",
+   "trig.code": 151,
+   "ch1.enabled": true,
+   "ch2.enabled": true
+  },
+  "seconds": 6.562637805938721,
+  "status": "phase off iter 1 fidx 5/5 hz 0 src 2 tb 0x0E | ch1 r5 pp 1mV mid 44 sig 0 set 1 | ch2 r5 pp 39mV mid 123 sig 1 set 1 | gen 1012 wait 996",
+  "pass": true
+ },
+ {
+  "case": "off",
+  "start": {
+   "ch2.vdiv": "9",
+   "timebase": "0x0B"
+  },
+  "want": {
+   "ch2.vdiv": 5,
+   "timebase": 11,
+   "ch1.vdiv": 5
+  },
+  "got": {
+   "ch1.vdiv": 5,
+   "ch2.vdiv": 5,
+   "timebase": 11,
+   "trig.source": "ch2",
+   "trig.level": 19,
+   "trig.mode": "auto",
+   "trig.code": 151,
+   "ch1.enabled": true,
+   "ch2.enabled": true
+  },
+  "seconds": 3.350788116455078,
+  "status": "phase off iter 1 fidx 4/4 hz 0 src 2 tb 0x0B | ch1 r5 pp 1mV mid 44 sig 0 set 1 | ch2 r5 pp 3mV mid 56 sig 0 set 1 | gen 1298 wait 1294",
+  "pass": true
+ },
+ {
+  "case": "sine-1k-ch2-alone",
+  "start": {
+   "ch1.enabled": "off",
+   "ch2.vdiv": "9",
+   "timebase": "0x08"
+  },
+  "want": {
+   "ch2.vdiv": 5,
+   "timebase": 13,
+   "trig.source": "ch2"
+  },
+  "got": {
+   "ch1.vdiv": 5,
+   "ch2.vdiv": 5,
+   "timebase": 13,
+   "trig.source": "ch2",
+   "trig.level": 19,
+   "trig.mode": "auto",
+   "trig.code": 151,
+   "ch1.enabled": false,
+   "ch2.enabled": true
+  },
+  "seconds": 3.4326419830322266,
+  "status": "phase off iter 1 fidx 2/5 hz 1000 src 2 tb 0x0D | ch1 r5 pp 0mV mid 0 sig 0 set 0 | ch2 r5 pp 2939mV mid 123 sig 1 set 1 | gen 1692 wait 1688",
+  "pass": true
+ }
+]

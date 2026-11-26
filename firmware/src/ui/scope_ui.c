@@ -1672,7 +1672,8 @@ typedef struct {
     char        text[CHIP_TEXT];
 } band_chip_t;
 
-#define CHIP_MAX  17u       /* holes = chips + the popup <= BAND_MAX_HOLES */
+#define CHIP_MAX  18u       /* holes = chips + the popup <= BAND_MAX_HOLES
+                               (18 since the trigger panel's Mask row) */
 _Static_assert(CHIP_MAX + 1u <= BAND_MAX_HOLES, "chips + popup must fit the holes");
 static band_chip_t g_chip[CHIP_MAX];
 static uint8_t     g_nchip;
@@ -1909,8 +1910,17 @@ static void scope_chips_build(const scope_state_t *ss, const theme_t *th)
         py += fh + 2;
         for (uint8_t r = 0; r < TM_ROW_COUNT; r++, py += fh + 2) {
             char t[32];
-            snprintf(t, sizeof(t), " %s %s", trig_menu_row_label(r),
-                     trig_menu_row_value(ss, r));
+            if (r == TM_ROW_MASK) {
+                scope_mask_summary_t ms;
+                char mv[16];
+                scope_mask_summary(&ms);
+                trig_menu_mask_value((uint8_t)ms.state, ms.teach_got, ms.teach_target,
+                                     mv, sizeof(mv));
+                snprintf(t, sizeof(t), " %s %s", trig_menu_row_label(r), mv);
+            } else {
+                snprintf(t, sizeof(t), " %s %s", trig_menu_row_label(r),
+                         trig_menu_row_value(ss, r));
+            }
             const bool sel = (scope_trig_menu.row == r);
             chip_add(px, py, pw, 1, t,
                      sel ? th->background : th->text_primary,

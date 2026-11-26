@@ -65,9 +65,9 @@ int main(void)
     trig_menu_open(&m);
     CHECK(m.open && m.row == TM_ROW_MODE, "open: row %u", m.row);
     trig_menu_row_step(&m, -1);
-    CHECK(m.row == TM_ROW_SOURCE, "UP from Mode wraps to Channel: %u", m.row);
+    CHECK(m.row == TM_ROW_MASK, "UP from Mode wraps to Mask: %u", m.row);
     trig_menu_row_step(&m, +1);
-    CHECK(m.row == TM_ROW_MODE, "DOWN from Channel wraps to Mode: %u", m.row);
+    CHECK(m.row == TM_ROW_MODE, "DOWN from Mask wraps to Mode: %u", m.row);
 
     /* Mode cycles Auto -> Normal -> Single -> Auto, and back. */
     CHECK(trig_menu_change(&m, &ss, +1) == TM_CHANGED_MODE && ss.trigger.mode == TRIG_NORMAL,
@@ -97,6 +97,24 @@ int main(void)
     ss.ch1.enabled = true;
 
     CHECK(strcmp(trig_menu_row_label(TM_ROW_SOURCE), "Channel:") == 0, "row label");
+
+    /* Mask (moved from AUTO, 2026-11-26): either direction is the one mask
+     * key, handed to the caller, and the trigger settings do not move. */
+    {
+        const scope_state_t before = ss;
+        m.row = TM_ROW_MASK;
+        CHECK(trig_menu_change(&m, &ss, +1) == TM_MASK_KEY, "mask row, RIGHT");
+        CHECK(trig_menu_change(&m, &ss, -1) == TM_MASK_KEY, "mask row, LEFT");
+        CHECK(memcmp(&before, &ss, sizeof ss) == 0, "the mask row changed the scope state");
+        CHECK(strcmp(trig_menu_row_label(TM_ROW_MASK), "Mask:") == 0, "mask label");
+        char b[16];
+        trig_menu_mask_value(0, 0, 8, b, sizeof b);
+        CHECK(strcmp(b, "Off") == 0, "no mask: %s", b);
+        trig_menu_mask_value(1, 3, 8, b, sizeof b);
+        CHECK(strcmp(b, "Teach 3/8") == 0, "teaching: %s", b);
+        trig_menu_mask_value(2, 8, 8, b, sizeof b);
+        CHECK(strcmp(b, "On") == 0, "testing: %s", b);
+    }
     trig_menu_close(&m);
     CHECK(!m.open, "close");
 

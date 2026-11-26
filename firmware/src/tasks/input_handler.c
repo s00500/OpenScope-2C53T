@@ -22,6 +22,7 @@
 #include "scope_cal.h"
 #include "trig_menu.h"
 #include "move_mode.h"
+#include "scope_autoset.h"
 #include "../ui/scope_timebase.h"
 #include "signal_gen.h"
 #include "theme.h"
@@ -626,6 +627,11 @@ static bool trig_panel_key(button_id_t button, QueueHandle_t dq, scope_state_t *
         } else if ((r & TM_CHANGED_SOURCE) && !fpga_apply_trigger_source()) {
             ss->trigger.source = src_was;    /* the wire did not change: say so */
             scope_show_popup("Source NOT SET");
+        } else if (r & TM_MASK_KEY) {
+            /* The mask key, moved here from AUTO (2026-11-26). */
+            char mp[24];
+            mask_auto_key(mp, sizeof(mp));
+            scope_show_popup(mp);
         }
     }
     send_cmd(dq, DCMD_SCOPE_LIVE);
@@ -676,6 +682,17 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
 
     if (trig_panel_key(button, dq, ss))
         return DCMD_SCOPE_LIVE;
+
+    /* Any key stops a running autoset, its settings left where it got to;
+     * AUTO itself only stops it (pressing it again to stop must not start
+     * another). */
+    if (scope_autoset_busy() && button != BTN_POWER) {
+        scope_autoset_cancel();
+        if (button == BTN_AUTO) {
+            popup_and_redraw(dq, "Autoset stopped");
+            return DCMD_SCOPE_LIVE;
+        }
+    }
 
     /* Softkeys (docs/specs/platform/softkey-ui.md): in the meter, the four
      * buttons under the screen do what the bar above them says. Caught here,
@@ -875,9 +892,10 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
                 break;
             }
 #endif
-            /* Time view: the mask key (teach / cancel / clear). */
-            mask_auto_key(pb, sizeof(pb));
-            popup_and_redraw(dq, pb);
+            /* Time view: autoset (2026-11-26; stock's AUTO is one too). The
+             * mask key moved to the trigger panel's Mask row. */
+            if (!scope_autoset_start(dq))
+                popup_and_redraw(dq, "Autoset: time view only");
         }
         break;
 

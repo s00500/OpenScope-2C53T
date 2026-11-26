@@ -8,6 +8,10 @@ real records, negative controls) runs in the build, and `mask_bench.py` is a sui
 Two S4 items (button control, drawn bounds) are done; two remain.
 **Champion:** David / Claude (2026-10-03)
 
+> **2026-11-26:** the mask key moved from AUTO to the trigger panel's Mask
+> row (TRIGGER, then Mask, OK: teach / cancel / off), when AUTO became an
+> autoset. Everything else below is unchanged.
+
 ## What it is
 
 Show the scope a known-good waveform, press teach, and from then on every
