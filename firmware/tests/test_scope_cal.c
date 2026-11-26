@@ -42,16 +42,19 @@ static int failures = 0;
 
 static void test_uncalibrated_ranges_return_zero(void)
 {
+    /* Since EXP-92 every range has a gain on both channels (0-1 were NONE
+     * until then, 0-3 before EXP-89). The NONE contract stays, and is what
+     * a range without a gain gets: exactly 0.0f, tier NONE, no volts/div. */
     for (uint8_t ch = 1; ch <= 2; ch++) {
-        for (uint8_t r = 0; r <= 1; r++) {   /* EXP-89: 2/3 measured */
-            CHECK(scope_cal_mv_per_count(ch, r) == 0.0f,
-                  "ch%u r%u: railed range must return exactly 0.0f, got %f",
-                  ch, r, (double)scope_cal_mv_per_count(ch, r));
-            CHECK(scope_cal_get_tier(ch, r) == SCOPE_CAL_NONE,
-                  "ch%u r%u: railed range must be tier NONE", ch, r);
-            CHECK(scope_cal_volts_per_div(ch, r) == 0.0f,
-                  "ch%u r%u: railed range must have no volts/div", ch, r);
-        }
+        for (uint8_t r = 0; r < SCOPE_CAL_RANGE_COUNT; r++)
+            CHECK(scope_cal_mv_per_count(ch, r) > 0.0f, "ch%u r%u has no gain", ch, r);
+        const uint8_t r = SCOPE_CAL_RANGE_COUNT;   /* no such range */
+        CHECK(scope_cal_mv_per_count(ch, r) == 0.0f,
+              "ch%u r%u: a range without a gain must return exactly 0.0f", ch, r);
+        CHECK(scope_cal_get_tier(ch, r) == SCOPE_CAL_NONE,
+              "ch%u r%u: a range without a gain must be tier NONE", ch, r);
+        CHECK(scope_cal_volts_per_div(ch, r) == 0.0f,
+              "ch%u r%u: a range without a gain must have no volts/div", ch, r);
     }
 }
 
@@ -82,12 +85,13 @@ static void test_source_scale_is_uniform(void)
     /* EXP-83/84 (2026-11-26, my unit). Unit #1's EXP-08 rows (14.08 / 21.83 /
      * 42.95 / 88.42 / 279.05 / 352.17 and 9.49 / 20.96 / 41.71 / 83.79 /
      * 223.71 / 425.00, x0.92) are withdrawn; see scope_cal.c. */
-    /* r2-r4 from EXP-89 (r4 was 7.85 / 7.82 on two levels, withdrawn). */
-    static const float raw_ch1[] = { 1.983f, 3.927f, 7.866f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f };
-    static const float raw_ch2[] = { 1.974f, 3.906f, 7.783f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f };
+    /* r0-r2 from EXP-92 (r2 was 1.983 / 1.974 on 3-4 levels, withdrawn),
+     * r3-r4 from EXP-89 (r4 was 7.85 / 7.82 on two levels, withdrawn). */
+    static const float raw_ch1[] = { 0.4028f, 0.7981f, 1.9872f, 3.927f, 7.866f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f };
+    static const float raw_ch2[] = { 0.3978f, 0.7928f, 1.9732f, 3.906f, 7.783f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f };
 
-    for (uint8_t i = 0; i < 8; i++) {
-        const uint8_t r = (uint8_t)(i + 2u);
+    for (uint8_t i = 0; i < 10; i++) {
+        const uint8_t r = i;
 
         const float got1 = scope_cal_mv_per_count(1, r);
         const float got2 = scope_cal_mv_per_count(2, r);
@@ -110,7 +114,7 @@ static void test_measured_tier_claims_hold(void)
      * form a doubling ladder. Those are the grounds for calling them
      * MEASURED, so they are asserted rather than asserted-in-a-comment.
      */
-    for (uint8_t r = 3; r <= 7; r++) {      /* 3/4 since EXP-89 */
+    for (uint8_t r = 0; r <= 7; r++) {      /* 3/4 since EXP-89, 0-2 EXP-92 */
         CHECK(scope_cal_get_tier(1, r) == SCOPE_CAL_MEASURED,
               "r%u should be MEASURED on ch1", r);
         CHECK(scope_cal_get_tier(2, r) == SCOPE_CAL_MEASURED,
@@ -125,18 +129,18 @@ static void test_measured_tier_claims_hold(void)
               r, (double)(disagreement * 100.0f));
     }
 
-    /* EXP-83/84/89: the whole calibrated ladder, r2->r3 2x, r3->r4 2x,
-     * r4->r5 2.5x, r5->r6 2x, r6->r7 2x, r7->r8 2.5x, r8->r9 2x, on both
-     * channels within 8 % (r8/r9 rest on 7-15 counts of span). */
+    /* EXP-83/84/89/92: the whole ladder, r0->r1 2x, r1->r2 2.5x, r2->r3 2x,
+     * r3->r4 2x, r4->r5 2.5x, r5->r6 2x, r6->r7 2x, r7->r8 2.5x, r8->r9 2x,
+     * on both channels within 8 % (r8/r9 rest on 7-15 counts of span). */
     {
-        const float step[] = { 2.0f, 2.0f, 2.5f, 2.0f, 2.0f, 2.5f, 2.0f };
+        const float step[] = { 2.0f, 2.5f, 2.0f, 2.0f, 2.5f, 2.0f, 2.0f, 2.5f, 2.0f };
         for (uint8_t ch = 1; ch <= 2; ch++)
-            for (uint8_t r = 2; r <= 8; r++) {
+            for (uint8_t r = 0; r <= 8; r++) {
                 const float got = scope_cal_mv_per_count(ch, (uint8_t)(r + 1u)) /
                                   scope_cal_mv_per_count(ch, r);
-                CHECK(fabsf(got / step[r - 2] - 1.0f) < 0.08f,
+                CHECK(fabsf(got / step[r] - 1.0f) < 0.08f,
                       "ch%u r%u->r%u: step %.2f, expected ~%.1f", ch, r, r + 1,
-                      (double)got, (double)step[r - 2]);
+                      (double)got, (double)step[r]);
             }
     }
 
@@ -157,9 +161,9 @@ static void test_provisional_ranges_still_produce_a_number(void)
     /* Provisional is not "unusable": a rough volt figure beats a raw count,
      * and the tier plus the label marker is how the user is told which is
      * which. */
-    const uint8_t provisional[] = { 2, 8, 9 };   /* r4 MEASURED since EXP-89 */
+    const uint8_t provisional[] = { 8, 9 };   /* r4 MEASURED since EXP-89, r2 EXP-92 */
 
-    for (uint8_t i = 0; i < 3; i++) {
+    for (uint8_t i = 0; i < 2; i++) {
         const uint8_t r = provisional[i];
         for (uint8_t ch = 1; ch <= 2; ch++) {
             CHECK(scope_cal_mv_per_count(ch, r) > 0.0f,
@@ -187,14 +191,17 @@ static void test_labels(void)
     char buf[16];
 
     /* Uncalibrated -> an explicit nothing, never a nominal number. */
-    scope_cal_range_label(1, 1, buf, sizeof(buf));
-    CHECK(strcmp(buf, "--") == 0, "r1 label should be \"--\", got \"%s\"", buf);
+    scope_cal_range_label(3, 1, buf, sizeof(buf));
+    CHECK(strcmp(buf, "--") == 0, "no calibration: label should be \"--\", got \"%s\"", buf);
 
-    /* EXP-89's sensitive rows: 3.927 * 32 = 125.7 mV, 1.983 * 32 = 63.5 (provisional). */
+    /* The sensitive rows: 3.927 * 32 = 125.7 mV (EXP-89), 1.9872 * 32 =
+     * 63.6 and 0.4028 * 32 = 12.9 mV (EXP-92), all measured, no tilde. */
     scope_cal_range_label(1, 3, buf, sizeof(buf));
     CHECK(strcmp(buf, "126mV") == 0, "r3 label should be 126mV, got \"%s\"", buf);
     scope_cal_range_label(1, 2, buf, sizeof(buf));
-    CHECK(strcmp(buf, "~63mV") == 0, "r2 label should be ~63mV, got \"%s\"", buf);
+    CHECK(strcmp(buf, "64mV") == 0, "r2 label should be 64mV, got \"%s\"", buf);
+    scope_cal_range_label(1, 0, buf, sizeof(buf));
+    CHECK(strcmp(buf, "13mV") == 0, "r0 label should be 13mV, got \"%s\"", buf);
 
     /* Measured -> a plain number, no marker. */
     scope_cal_range_label(1, 6, buf, sizeof(buf));
@@ -245,11 +252,11 @@ static void test_true_scale_gate_matches_calibration(void)
                   "ch%u r%u: true_scale_ok(%d) must match has-cal(%d)",
                   ch, r, ok, cal);
         }
-        /* Ranges 0-1 have no gain -> must autofit; 3-7 are MEASURED -> true scale. */
-        for (uint8_t r = 0; r <= 1; r++)
-            CHECK(!scope_cal_true_scale_ok(ch, r),
-                  "ch%u r%u: railed range must NOT render true scale", ch, r);
-        for (uint8_t r = 3; r <= 7; r++)
+        /* No gain -> must autofit (only a missing range now); 0-7 are
+         * MEASURED -> true scale. */
+        CHECK(!scope_cal_true_scale_ok(ch, SCOPE_CAL_RANGE_COUNT),
+              "ch%u: a range without a gain must NOT render true scale", ch);
+        for (uint8_t r = 0; r <= 7; r++)
             CHECK(scope_cal_true_scale_ok(ch, r),
                   "ch%u r%u: measured range must render true scale", ch, r);
     }
@@ -287,7 +294,8 @@ static void test_probe_factor(void)
         scope_cal_range_label_bnc(2, r, bnc, sizeof(bnc));
         CHECK(strcmp(bnc, l_before) == 0, "BNC label ignores the probe (%s vs %s)", bnc, l_before);
     }
-    CHECK(scope_cal_volts_per_count(2, 0) == 0.0f, "an uncalibrated range stays 0 at 10x");
+    CHECK(scope_cal_volts_per_count(2, SCOPE_CAL_RANGE_COUNT) == 0.0f,
+          "a range without a gain stays 0 at 10x");
     CHECK(scope_cal_true_scale_ok(2, r), "true-scale gate unaffected by the probe");
 
     scope_cal_set_probe_source(probe_bad);
@@ -342,7 +350,7 @@ static void test_zero_model(void)
 
     /* Volts: 0 V at the zero, one division above it is volts/div. */
     for (uint8_t ch = 1; ch <= 2; ch++)
-        for (uint8_t r = 2; r <= 9; r++) {
+        for (uint8_t r = 0; r <= 9; r++) {
             float z, v0 = 1.0f, v1 = 0.0f;
             scope_cal_zero_counts(ch, r, 2300, &z);
             CHECK(scope_cal_counts_to_volts(ch, r, 2300, z, &v0) && fabsf(v0) < 1e-6f,
@@ -356,7 +364,8 @@ static void test_zero_model(void)
     /* A zero without a gain is not a volt; nonsense arguments are refused. */
     {
         float v = 123.0f, z = 123.0f;
-        CHECK(!scope_cal_counts_to_volts(1, 1, 2048, 100.0f, &v) && v == 123.0f, "r1 has no gain");
+        CHECK(!scope_cal_counts_to_volts(1, SCOPE_CAL_RANGE_COUNT, 2048, 100.0f, &v) && v == 123.0f,
+              "a range without a gain gave a volt");
         CHECK(!scope_cal_zero_counts(0, 5, 2048, &z) && z == 123.0f, "ch0 must not resolve");
         CHECK(!scope_cal_zero_counts(3, 5, 2048, &z), "ch3 must not resolve");
         CHECK(!scope_cal_zero_counts(1, SCOPE_CAL_RANGE_COUNT, 2048, &z), "range past the end");

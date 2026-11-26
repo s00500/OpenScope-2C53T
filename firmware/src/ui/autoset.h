@@ -47,7 +47,7 @@ void autoset_stats(const uint8_t *s, uint16_t n, autoset_stats_t *out);
  * is under AUTOSET_MIN_PP_COUNTS or fewer than two crossings were seen. */
 float autoset_cycles_per_sample(const uint8_t *s, uint16_t n, uint8_t lo, uint8_t hi);
 
-/* The most sensitive calibrated range (2..9) on which [vmin, vmax] volts at
+/* The most sensitive calibrated range (0..9) on which [vmin, vmax] volts at
  * the BNC fit the converter and at most target_div divisions, with the
  * channel's offset reference at offset_code. 9 when none does. */
 uint8_t autoset_pick_range(uint8_t ch, uint16_t offset_code,

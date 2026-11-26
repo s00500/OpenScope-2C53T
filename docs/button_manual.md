@@ -110,7 +110,8 @@ converter's 1-count noise is under one row). Settings > Oscilloscope >
 Vertical Scale switches to **Autofit**, which stretches each trace to fill
 its half whatever its size; the grid then means position only, and the
 converter's noise shows as a comb on a quiet input (up to 4x magnified). A
-range without a measured V/div (ranges 0 and 1) always autofits. Saved.
+range without a measured V/div would always autofit; since EXP-92 every
+range has one (range 0 is 13 mV per division, range 9 about 13 V). Saved.
 
 Until 2026-11-26 the stages split the axes: "Trig level" left LEFT/RIGHT on
 the timebase, "Position" left UP/DOWN on V/div, there was no vertical
@@ -162,7 +163,7 @@ stay where it got to).
   says `Autoset: no signal` and the timebase is kept.
 
 It uses the calibrated V/div and 0 V (EXP-83/84/89), so it is only as good as
-those: ranges 0 and 1 have no calibration and are never chosen. In the FFT
+those (all ten ranges are calibrated since EXP-92). In the FFT
 views AUTO still auto-configures the spectrum; in the meter it picks the
 function.
 

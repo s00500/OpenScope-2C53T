@@ -13,8 +13,9 @@
  * Since 2026-11-26: EXP-83 (CH1) and EXP-84 (CH2), my unit. The onboard
  * generator's DC levels into each input by a cable, its volts taken from a
  * self-calibrated Rigol DS1104Z (EXP-80). EXP-89 added ranges 2 and 3 and
- * re-measured 4: now 3-7 MEASURED, 2/8/9 PROVISIONAL, 0-1 NONE; scope_cal.c
- * gives the per-range evidence. The rest of this section, the tier text
+ * re-measured 4; EXP-92 added 0 and 1 (and 2 again, at finer steps): now
+ * 0-7 MEASURED, 8/9 PROVISIONAL, none NONE; scope_cal.c gives the per-range
+ * evidence. The rest of this section, the tier text
  * included, is the history.
  *
  * Before: docs/experiments/2026-08-17-08-per-range-gain-ladders.md, bench unit #1.

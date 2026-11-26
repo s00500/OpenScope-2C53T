@@ -28,6 +28,14 @@
  * the rows here, which are left as measured.
  * WITHDRAWN 2026-11-26 (EXP-89): r4 7.85 (CH1) / 7.82 (CH2), two levels each.
  *
+ * Ranges 0-2 from EXP-92 (same night): the generator at raw DAC codes
+ * (`siggen dccode`, 0.79 mV steps instead of amp's 98 mV), 7-9 levels per
+ * range, fit SE 0.10-0.38 %, residuals <= 0.88 counts; every range puts the
+ * generator's own 0 V at +8.7..+10.0 mV against the EXP-89 zero, on both
+ * channels. Range 3 was re-measured there too (3.934 / 3.918, within 0.3 %
+ * of the rows here, which are kept).
+ * WITHDRAWN 2026-11-26 (EXP-92): r2 1.983 (CH1) / 1.974 (CH2), 3-4 levels.
+ *
  * WITHDRAWN 2026-11-26: bench unit #1's rows (EXP-08, ESP32 source, x0.92
  * from a JDS6600), which these replace:
  *     CH1  14.08  21.83  42.95  88.42  279.05  352.17   (r4..r9, raw)
@@ -50,9 +58,9 @@
  * wrong — is one this project has now hit four separate times.
  */
 static const float mv_per_count[2][SCOPE_CAL_RANGE_COUNT] = {
-    /*        r0    r1    r2      r3      r4      r5      r6      r7       r8       r9 */
-    /* CH1 */ { 0.0f, 0.0f, 1.983f, 3.927f, 7.866f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f },
-    /* CH2 */ { 0.0f, 0.0f, 1.974f, 3.906f, 7.783f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f },
+    /*        r0       r1       r2       r3      r4      r5      r6      r7       r8       r9 */
+    /* CH1 */ { 0.4028f, 0.7981f, 1.9872f, 3.927f, 7.866f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f },
+    /* CH2 */ { 0.3978f, 0.7928f, 1.9732f, 3.906f, 7.783f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f },
 };
 
 /*
@@ -60,10 +68,16 @@ static const float mv_per_count[2][SCOPE_CAL_RANGE_COUNT] = {
  * tier is a statement about how well the two channels AGREE, so it cannot
  * differ between them.
  *
+ * 2026-11-26 (EXP-92, my unit):
+ *   r0     MEASURED     channels within 1.3 %, 7 levels each, residuals
+ *                       <= 0.39 counts (12.9 / 12.7 mV per division)
+ *   r1     MEASURED     0.7 %, 8 levels each, residuals <= 0.67 counts
+ *   r2     MEASURED     0.7 %, 9 levels each (before: PROVISIONAL, 3-4
+ *                       levels at the generator's 0.1 V steps, EXP-89)
  * 2026-11-26 (EXP-89, my unit):
  *   r0-r1  NONE         not railed (the short reads 40-49 counts on every
  *                       range), but GEN's 0.1 V step is >100 counts here:
- *                       no gain measured
+ *                       no gain measured (superseded by EXP-92)
  *   r2     PROVISIONAL  channels agree within 0.5 %, but 3-4 levels fit
  *                       below the rail (the range spans ~0.5 V)
  *   r3     MEASURED     0.5 %, 7 levels each, max residual 0.16-0.56 counts
@@ -102,9 +116,9 @@ static const float mv_per_count[2][SCOPE_CAL_RANGE_COUNT] = {
  *                       these rows rather than the hardware being odd.
  */
 static const scope_cal_tier_t tier_by_range[SCOPE_CAL_RANGE_COUNT] = {
-    SCOPE_CAL_NONE,         /* 0 */
-    SCOPE_CAL_NONE,         /* 1 */
-    SCOPE_CAL_PROVISIONAL,  /* 2 */
+    SCOPE_CAL_MEASURED,     /* 0  EXP-92 */
+    SCOPE_CAL_MEASURED,     /* 1  EXP-92 */
+    SCOPE_CAL_MEASURED,     /* 2  EXP-92 */
     SCOPE_CAL_MEASURED,     /* 3 */
     SCOPE_CAL_MEASURED,     /* 4 */
     SCOPE_CAL_MEASURED,     /* 5 */
@@ -238,8 +252,8 @@ void scope_cal_range_label_bnc(uint8_t ch, uint8_t range_idx, char *out, uint32_
  * points within 0.29 counts, rms 0.14; CH2's 30 within 0.27, rms 0.14.
  *
  * Ranges 0..4 repeat 5..9 within 0.3 counts on both channels, which says the
- * two halves share their five taps. Ranges 0..3 have a zero but no gain yet:
- * a zero alone is not a volt (scope_cal_counts_to_volts refuses).
+ * two halves share their five taps. (Ranges 0..3 had a zero but no gain
+ * until EXP-89/92 measured them.)
  */
 static const float zero_ref[2][SCOPE_CAL_RANGE_COUNT] = {
     /*        r0      r1      r2      r3      r4      r5      r6      r7      r8      r9 */

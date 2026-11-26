@@ -75,7 +75,7 @@ float autoset_cycles_per_sample(const uint8_t *s, uint16_t n, uint8_t lo, uint8_
 uint8_t autoset_pick_range(uint8_t ch, uint16_t offset_code,
                            float vmin, float vmax, float target_div)
 {
-    for (uint8_t r = 2; r <= 9; r++) {
+    for (uint8_t r = 0; r <= 9; r++) {
         const float g = scope_cal_mv_per_count(ch, r) / 1000.0f;   /* V per count */
         float z;
         if (g <= 0.0f || !scope_cal_zero_counts(ch, r, offset_code, &z))

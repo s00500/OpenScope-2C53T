@@ -110,8 +110,9 @@ static void test_ranges(void)
     /* 12 V DC with 100 mV ripple: the converter decides, r7 (top at 197). */
     CHECK(autoset_pick_range(1, 2048, 11.95f, 12.05f, 5.0f) == 7, "12 V DC: r%u",
           autoset_pick_range(1, 2048, 11.95f, 12.05f, 5.0f));
-    /* 10 mV: the most sensitive calibrated range. */
-    CHECK(autoset_pick_range(2, 2114, 0.0f, 0.01f, 5.0f) == 2, "10 mV: r%u",
+    /* 10 mV: the most sensitive calibrated range (range 0 since EXP-92:
+     * 25 counts, 0.8 div). */
+    CHECK(autoset_pick_range(2, 2114, 0.0f, 0.01f, 5.0f) == 0, "10 mV: r%u",
           autoset_pick_range(2, 2114, 0.0f, 0.01f, 5.0f));
     /* Nothing fits 100 V: the least sensitive range, not a refusal. */
     CHECK(autoset_pick_range(1, 2048, 0.0f, 100.0f, 5.0f) == 9, "100 V: r%u",
