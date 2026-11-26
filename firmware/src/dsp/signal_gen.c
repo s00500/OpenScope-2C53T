@@ -19,6 +19,13 @@ static siggen_config_t g_config = {
 };
 static uint16_t g_cycle[SIGGEN_CYCLE_SAMPLES];
 static bool g_cycle_built = false;
+
+/* A raw DC level for the bench (2026-11-26): every sample of the cycle at one
+ * DAC code, 0..4095; 0xFFFF = none. The UI's DC levels are 20 + amp x 4095/33
+ * codes, 124 codes (98 mV) apart, too coarse to measure ranges 0 and 1 (about
+ * a millivolt per count); one code is 0.7937 mV (EXP-80). Any setting that
+ * rebuilds the cycle drops it. */
+static uint16_t g_dc_code = 0xFFFFu;
 static siggen_timing_t g_timing;
 static bool g_timing_valid = false;
 
@@ -38,6 +45,9 @@ static void rebuild(void)
 {
     siggen_wave_build(g_cycle, g_config.waveform, g_config.amplitude_dv,
                       g_config.duty_pct);
+    if (g_dc_code != 0xFFFFu && g_config.waveform == SIGGEN_DC)
+        for (unsigned i = 0; i < SIGGEN_CYCLE_SAMPLES; i++)
+            g_cycle[i] = g_dc_code;
     g_cycle_built = true;
 #ifndef EMULATOR_BUILD
     memcpy(dac_output_get_buffer(), g_cycle, sizeof g_cycle);
@@ -74,6 +84,7 @@ void siggen_init(const siggen_config_t *cfg)
         g_config.duty_pct = SIGGEN_DEFAULT_DUTY;
         g_config.output_enabled = false;
     }
+    g_dc_code = 0xFFFFu;
     rebuild();
     apply();
 }
@@ -89,6 +100,7 @@ void siggen_set_waveform(uint8_t wave)
 {
     if (wave >= SIGGEN_WAVEFORM_COUNT) return;
     g_config.waveform = wave;
+    g_dc_code = 0xFFFFu;
     rebuild();
 }
 
@@ -96,6 +108,7 @@ void siggen_set_amplitude_dv(uint8_t amp_dv)
 {
     if (amp_dv > SIGGEN_AMP_MAX_DV) amp_dv = SIGGEN_AMP_MAX_DV;
     g_config.amplitude_dv = amp_dv;
+    g_dc_code = 0xFFFFu;
     rebuild();
 }
 
@@ -103,7 +116,21 @@ void siggen_set_duty(uint8_t pct)
 {
     if (pct > SIGGEN_DUTY_MAX) pct = SIGGEN_DUTY_MAX;
     g_config.duty_pct = pct;
+    g_dc_code = 0xFFFFu;
     rebuild();
+}
+
+void siggen_set_dc_code(uint16_t code)
+{
+    if (code > 4095u) code = 4095u;
+    g_config.waveform = SIGGEN_DC;
+    g_dc_code = code;
+    rebuild();
+}
+
+int siggen_get_dc_code(void)
+{
+    return (g_dc_code == 0xFFFFu || g_config.waveform != SIGGEN_DC) ? -1 : (int)g_dc_code;
 }
 
 void siggen_enable(bool enable)

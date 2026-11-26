@@ -38,6 +38,10 @@ void siggen_init(const siggen_config_t *cfg);
 void siggen_set_frequency(uint32_t freq_hz);   /* clamped to 50 kHz */
 void siggen_set_waveform(uint8_t wave);        /* ignored if >= 13 */
 void siggen_set_amplitude_dv(uint8_t amp_dv);  /* clamped to 30 */
+/* Bench: DC at one raw DAC code (0..4095, 0.7937 mV each, EXP-80), until
+ * the next waveform/amplitude/duty change; -1 from the getter when none. */
+void siggen_set_dc_code(uint16_t code);
+int  siggen_get_dc_code(void);
 void siggen_set_duty(uint8_t pct);             /* clamped to 100 */
 void siggen_enable(bool enable);
 
