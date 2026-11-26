@@ -141,10 +141,20 @@ static uint16_t lcd_shadow_x;
 static uint16_t lcd_shadow_y;
 static uint16_t lcd_shadow_w;
 static uint16_t lcd_shadow_h;
-static uint32_t lcd_shadow_pos;
-static uint16_t lcd_shadow_last_color;
-static uint8_t lcd_shadow_last_index;
-static bool lcd_shadow_last_valid;
+/* Position inside the current window, stepped per pixel. It was a linear
+ * index divided back into x and y (pos % w, pos / w) on EVERY pixel. */
+static uint16_t lcd_shadow_cx;
+static uint16_t lcd_shadow_cy;
+/* Colour -> palette index cache, direct-mapped on a hash of the colour. A
+ * scope column alternates between the background, grid and trace colours,
+ * which defeated the old one-entry cache and sent most such pixels through
+ * the 16-colour search: ~16 ms of a ~100 ms live frame on my unit (EXP-85,
+ * measured by skipping the lookup). A frame uses a dozen colours or so, so
+ * after the first frame nearly every pixel hits. */
+#define LCD_SHADOW_CACHE 16u
+static uint16_t lcd_shadow_cache_color[LCD_SHADOW_CACHE];
+static uint8_t  lcd_shadow_cache_index[LCD_SHADOW_CACHE];
+static uint16_t lcd_shadow_cache_valid;          /* one bit per slot */
 
 static const uint16_t lcd_shadow_palette[16] = {
     COLOR_BLACK,
@@ -167,9 +177,11 @@ static const uint16_t lcd_shadow_palette[16] = {
 
 static uint8_t lcd_shadow_palette_index(uint16_t color)
 {
-    if (lcd_shadow_last_valid && color == lcd_shadow_last_color) {
-        return lcd_shadow_last_index;
-    }
+    const uint8_t slot = (uint8_t)((color ^ (color >> 4) ^ (color >> 9)) &
+                                   (LCD_SHADOW_CACHE - 1u));
+    if ((lcd_shadow_cache_valid & (1u << slot)) &&
+        lcd_shadow_cache_color[slot] == color)
+        return lcd_shadow_cache_index[slot];
 
     uint8_t best = 0;
     uint32_t best_dist = 0xFFFFFFFFu;
@@ -193,20 +205,23 @@ static uint8_t lcd_shadow_palette_index(uint16_t color)
             if (dist == 0) break;
         }
     }
-    lcd_shadow_last_color = color;
-    lcd_shadow_last_index = best;
-    lcd_shadow_last_valid = true;
+    lcd_shadow_cache_color[slot] = color;
+    lcd_shadow_cache_index[slot] = best;
+    lcd_shadow_cache_valid |= (uint16_t)(1u << slot);
     return best;
 }
 
 static void lcd_shadow_write_pixel(uint16_t color)
 {
-    if (lcd_shadow_w == 0 || lcd_shadow_h == 0) return;
-    if (lcd_shadow_pos >= (uint32_t)lcd_shadow_w * lcd_shadow_h) return;
+    /* Past the window's last pixel: ignored, as before (no wrap). */
+    if (lcd_shadow_w == 0 || lcd_shadow_cy >= lcd_shadow_h) return;
 
-    uint16_t x = lcd_shadow_x + (uint16_t)(lcd_shadow_pos % lcd_shadow_w);
-    uint16_t y = lcd_shadow_y + (uint16_t)(lcd_shadow_pos / lcd_shadow_w);
-    lcd_shadow_pos++;
+    uint16_t x = lcd_shadow_x + lcd_shadow_cx;
+    uint16_t y = lcd_shadow_y + lcd_shadow_cy;
+    if (++lcd_shadow_cx >= lcd_shadow_w) {
+        lcd_shadow_cx = 0;
+        lcd_shadow_cy++;
+    }
 
     if (x >= LCD_WIDTH || y < lcd_shadow_page ||
         y >= (uint16_t)(lcd_shadow_page + LCD_SHADOW_HEIGHT)) {
@@ -236,9 +251,7 @@ void lcd_shadow_clear(void)
             lcd_shadow[y][x] = 0;
         }
     }
-    lcd_shadow_last_color = 0;
-    lcd_shadow_last_index = 0;
-    lcd_shadow_last_valid = false;
+    lcd_shadow_cache_valid = 0;
 }
 
 void lcd_shadow_set_page(uint16_t y)
@@ -613,7 +626,8 @@ void lcd_set_window(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     lcd_shadow_y = y;
     lcd_shadow_w = w;
     lcd_shadow_h = h;
-    lcd_shadow_pos = 0;
+    lcd_shadow_cx = 0;
+    lcd_shadow_cy = 0;
 }
 
 /* ========================================================================
