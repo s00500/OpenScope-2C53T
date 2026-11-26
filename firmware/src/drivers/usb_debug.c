@@ -8164,8 +8164,7 @@ static void mask_print_status(void)
                          (int)s.last_fail.worst);
     usb_debug_printf("stop-on-fail %s%s\r\n", s.stop_on_fail ? "ON" : "OFF",
                      s.hold ? "  -- HOLDING a failed record (mask run / OK to resume)" : "");
-    usb_debug_printf("move-focus %s\r\n", scope_mask_focus ? "mask" : scope_hpos_focus ? "position" :
-                     scope_trig_level_focus ? "trig-level" : "vdiv");
+    usb_debug_printf("move-mode %s\r\n", move_mode_name(scope_move_mode_now()));
     usb_debug_printf("heap free %lu (min ever %lu)\r\n", (unsigned long)xPortGetFreeHeapSize(),
                      (unsigned long)xPortGetMinimumEverFreeHeapSize());
 }

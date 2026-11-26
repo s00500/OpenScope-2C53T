@@ -288,7 +288,7 @@ static void draw_trigger_indicator(const scope_state_t *ss, const theme_t *th,
 
     /* Dotted horizontal line at trigger level; denser while UP/DOWN are
      * adjusting it, so the user can see which control the arrows own. */
-    for (uint16_t x = 0; x < LCD_WIDTH - 6; x += (scope_trig_level_focus ? 2u : 4u))
+    for (uint16_t x = 0; x < LCD_WIDTH - 6; x += (scope_move_mode_now() == MOVE_TRIGGER ? 2u : 4u))
         lcd_set_pixel(x, (uint16_t)trig_y, th->trigger);
 }
 
@@ -903,6 +903,12 @@ static void chan_map_prep(autofit_t *a, const volatile uint8_t *buf, bool split,
                          128u, SCOPE_H);
     else
         autofit_prep(a, buf, top, bot, mask_ch);
+    /* Vertical position (MOVE -> Position, 2026-11-26): `band` is the
+     * channel (0 = CH1, 1 = CH2) for every caller. Applied here, in the one
+     * map, so the trace, the trigger line and the mask bounds move together
+     * in both renderers. */
+    const scope_state_t *ss = scope_state_get();
+    scope_vmap_offset(a, band ? ss->ch2.position : ss->ch1.position);
 }
 
 /*
@@ -1704,6 +1710,27 @@ static void scope_chips_build(const scope_state_t *ss, const theme_t *th)
         }
         chip_add(LCD_WIDTH - 46, row0, 44, 1, label, color, th->background,
                  FONT_ALIGN_RIGHT);
+    }
+
+    /* What the arrow keys do (MOVE, 2026-11-26): a tag left of the trigger
+     * status, in the colour of what it moves. While the trigger panel is
+     * open the panel has the keys and says so itself. */
+    if (!scope_trig_menu.open) {
+        const move_mode_t mm = scope_move_mode_now();
+        const char *t = move_mode_name(mm);
+        uint16_t bg;
+        switch (mm) {
+        case MOVE_TRIGGER:  bg = th->trigger;   break;
+        case MOVE_POSITION: bg = (active_channel == 0) ? th->ch1 : th->ch2; break;
+        case MOVE_MASK:     bg = th->warning;   break;
+        case MOVE_CURSORS:  bg = th->highlight; break;
+        default:            bg = th->text_secondary; break;
+        }
+        /* Fixed width (the longest tag, "Position"), so a shorter tag never
+         * leaves a tail and the hole does not move. */
+        const int w = font_string_width("Position", &font_small) + 8;
+        chip_add(LCD_WIDTH - 48 - w, row0, w, 1, t, th->background, bg,
+                 FONT_ALIGN_CENTER);
     }
 
     /* Cursor readout under the top row, and a label beside each line. */
@@ -2562,14 +2589,14 @@ void draw_scope_live_frame(void)
     (void)band_h;
 
 
-    /* The full path's maps exactly (chan_map_prep), band split and true
-     * scale included, so a change of renderer never moves the trace. Both
-     * paths end the trace at TRACE_BOT == band_bot, so neither leaves pixels
-     * in the readout strip (EXP-77).
+    /* The full path's maps exactly (chan_map_prep), band split, true scale
+     * and the channel's vertical position included, so a change of renderer
+     * never moves the trace. Both paths end the trace at TRACE_BOT ==
+     * band_bot, so neither leaves pixels in the readout strip (EXP-77).
      *
-     * The channel position offset is deliberately NOT applied. The full path
-     * ignores it, and against an autoscaled trace it has no meaning — keeping
-     * it here is what let the two paths disagree in the first place. */
+     * Until 2026-11-26 the position was applied by neither path (one of them
+     * applying it on its own is what let the two disagree once); it now
+     * lives in the shared map, so they cannot. */
     const bool en1 = ss->ch1.enabled;
     const bool en2 = ss->ch2.enabled;
 
@@ -2592,7 +2619,7 @@ void draw_scope_live_frame(void)
     int16_t trig_y = trigger_marker_y(ss, (ss->trigger.source == TRIG_SRC_CH2) ? &a2 : &a1);
     if (trig_y < SCOPE_TOP + 2) trig_y = SCOPE_TOP + 2;
     if (trig_y > TRACE_BOT - 3) trig_y = TRACE_BOT - 3;
-    const uint16_t trig_step = scope_trig_level_focus ? 1u : 3u;   /* dot mask */
+    const uint16_t trig_step = (scope_move_mode_now() == MOVE_TRIGGER) ? 1u : 3u;   /* dot mask */
 
     int16_t p1 = 0, p2 = 0;  /* previous column's y — vertical continuity */
 

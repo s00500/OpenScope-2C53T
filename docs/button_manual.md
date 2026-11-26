@@ -35,29 +35,44 @@ Switching a channel off or on also changes the FPGA channel routing (PC1/PC2),
 and a trigger source on a channel that goes off moves to the other channel
 (EXP-86).
 
-### Vertical / Horizontal
+### MOVE: what the arrow keys do
 
-| Button | Action |
-|--------|--------|
-| **UP** | Increase V/div for active channel (zoom out vertically) |
-| **DOWN** | Decrease V/div for active channel (zoom in vertically) |
-| **LEFT** | Decrease timebase (faster sweep, zoom in horizontally) |
-| **RIGHT** | Increase timebase (slower sweep, zoom out horizontally) |
+**MOVE** hands the four arrow keys to the next mode. Each mode owns both axes,
+and the mode in force is always shown as a tag in the top row, left of the
+trigger status, in the colour of what it moves (hidden while the trigger
+panel is open: the panel has the keys then). Pressing MOVE also raises a
+popup naming the keys.
 
-V/div steps: 5mV, 10mV, 20mV, 50mV, 100mV, 200mV, 500mV, 1V, 2V, 5V
+| Mode (tag) | UP/DOWN | LEFT/RIGHT | SELECT |
+|------------|---------|------------|--------|
+| **Scale** (grey, default) | V/div of the active channel | Time/div | Cursors |
+| **Trigger** (trigger colour) | Trigger level (the dotted line, drawn denser in this mode) | Trigger point across the screen | Cursors |
+| **Position** (channel colour) | Vertical position of the active channel | Trigger point across the screen | Cursors |
+| **Mask** (warning colour, only while a mask exists) | Mask vertical tolerance ±2 counts | Mask horizontal tolerance ±1 sample | Stop-on-fail on/off |
+| **Cursors** (cursor colour, only while cursors are on) | Move the active cursor 4 px | Next cursor | Cursors |
 
-Timebase steps: 5ns, 10ns, 20ns, 50ns, 100ns, 200ns, 500ns, 1us, 2us, 5us, 10us, 20us, 50us, 100us, 200us, 500us, 1ms, 2ms, 5ms, 10ms, 20ms
+MOVE cycles Scale -> Trigger -> Position -> Mask -> Cursors -> Scale, skipping
+Mask and Cursors when they are not there. Turning the cursors on with SELECT
+hands them the arrows (tag: Cursors); MOVE takes the arrows back while the
+cursors stay on screen, and switching the cursors off returns the arrows to
+Scale. Clearing the mask does the same for Mask.
 
-### Trigger and MOVE
+Position and the trigger point move half a grid division per press (13 rows,
+16 columns); the popup shows the offset in divisions. The vertical position
+is a display offset, applied to the trace, the trigger level line and the mask
+bounds together; a trace moved past the edge of its band flattens there, and
+it is not saved across power cycles. Trigger and Position changes draw without
+blanking the screen; a Scale change repaints it (the info bar and the
+measurements change with it).
 
-**MOVE** cycles what the arrow keys adjust (a popup names the stage):
+The V/div and time/div labels come from the measured tables (`scope_cal.c`,
+`scope_timebase.c`); a step without a measurement shows `--`.
 
-| Stage | UP/DOWN | LEFT/RIGHT | SELECT |
-|-------|---------|------------|--------|
-| V/div (default) | V/div of the active channel | Timebase | Cursors |
-| Trig level | Trigger level (the dotted line) | Timebase | Cursors |
-| Position | V/div | Trigger point across the screen | Cursors |
-| Mask (only while a mask exists) | Mask vertical tolerance ±2 counts | Mask horizontal tolerance ±1 sample | Stop-on-fail on/off |
+Until 2026-11-26 the stages split the axes: "Trig level" left LEFT/RIGHT on
+the timebase, "Position" left UP/DOWN on V/div, there was no vertical
+position, and cursors took all four arrows whenever they were on.
+
+### Trigger panel
 
 **TRIGGER** (time view) opens the trigger panel, stock's "Trigger Settings":
 
@@ -84,7 +99,7 @@ Oscilloscope. In the FFT views TRIGGER still cycles the mode.
 | Button | Action |
 |--------|--------|
 | **AUTO** | No mask: teach one from the next 8 good captures. Teaching: cancel. Mask ready: turn it off |
-| **MOVE** -> *Mask* | Adjust tolerances and stop-on-fail (table above) |
+| **MOVE** -> *Mask* | Adjust tolerances and stop-on-fail (MOVE table above) |
 | **OK** | Resume after a held failure |
 
 Every capture is then judged PASS / FAIL, or skipped with a reason (for example,
@@ -97,11 +112,12 @@ failure is held. Full design: `docs/specs/scope/mask-pass-fail.md`.
 
 | Button | Action |
 |--------|--------|
-| **SELECT** | Cycle cursor mode: Off -> Vertical -> Horizontal -> Both -> Off (time view only; was TRIGGER until 2026-11-26) |
+| **SELECT** | Cycle cursor mode: Off -> Vertical -> Horizontal -> Both -> Off (time view only; was TRIGGER until 2026-11-26). Turning them on hands them the arrows (MOVE mode Cursors) |
 | **UP/DOWN** | Move the active cursor 4 px (UP = left / up) |
 | **LEFT/RIGHT** | Select the next cursor; both keys do the same: V1 -> V2 (vertical), H1 -> H2 (horizontal), V1 -> V2 -> H1 -> H2 (both) |
+| **MOVE** | Give the arrows back to Scale / Trigger / Position while the cursors stay on; MOVE again cycles back to Cursors |
 
-When cursors are on, in the time view, UP/DOWN/LEFT/RIGHT control the cursors instead of V/div, timebase and trigger. In the FFT, split, waterfall and XY views the arrows keep their view's meaning even with a cursor left on. The active cursor is solid, the others dashed. The readout sits at the top left under the top row: `dt=...  1/dt=...` for the vertical pair and `dV...` for the horizontal pair (in pixels when the two H cursors span both channel bands). Labels: V1/V2 at the bottom of the trace area, H1/H2 at the right edge. Cursors draw without blanking the screen (EXP-85).
+The arrows move the cursors only in MOVE's Cursors mode (the tag says so). In the FFT, split, waterfall and XY views the arrows keep their view's meaning even with a cursor left on. The active cursor is solid, the others dashed. The readout sits at the top left under the top row: `dt=...  1/dt=...` for the vertical pair and `dV...` for the horizontal pair (in pixels when the two H cursors span both channel bands). Labels: V1/V2 at the bottom of the trace area, H1/H2 at the right edge. Cursors draw without blanking the screen (EXP-85).
 
 ### FFT / Spectrum Views
 
@@ -323,20 +339,22 @@ Shows device info, pool status, heap free, license. **MENU** or **OK** to go bac
 | MENU   | -> Multimeter    | -> Signal Gen    | -> Settings      | Back / -> Scope  |
 | CH1    | Select / off / on|        -         |        -         |        -         |
 | CH2    | Select / off / on|        -         |        -         |        -         |
-| UP     | V/div up         |        -         | Amplitude up     | Selection up     |
-| DOWN   | V/div down       |        -         | Amplitude down   | Selection down   |
-| LEFT   | Timebase down    | Prev function    | Duty cycle down  |        -         |
-| RIGHT  | Timebase up      | Next function    | Duty cycle up    |        -         |
+| UP     | By MOVE mode *   |        -         | Amplitude up     | Selection up     |
+| DOWN   | By MOVE mode *   |        -         | Amplitude down   | Selection down   |
+| LEFT   | By MOVE mode *   | Prev function    | Duty cycle down  |        -         |
+| RIGHT  | By MOVE mode *   | Next function    | Duty cycle up    |        -         |
 | OK     | Run/Stop         | Hold             | Output on/off    | Enter / Toggle   |
 | PRM    | Cycle FFT views  | Softkey: View    | Freq presets     |        -         |
 | SELECT | Cursor mode      | Softkey (Reset)  | Cycle waveform   | Cycle comp type  |
-| MOVE   | Arrow-key stage  | Softkey (Func.)  |        -         |        -         |
+| MOVE   | Arrow-key mode   | Softkey (Func.)  |        -         |        -         |
 | TRIGGER| Trigger panel    | Softkey (Rel.)   |        -         |        -         |
 | AUTO   | FFT auto-config  | Auto function    |        -         |        -         |
 | SAVE   | Screenshot       | Debug overlay    | Screenshot       | Screenshot       |
 +--------+------------------+------------------+------------------+------------------+
 
-Note: When cursors are active in the Oscilloscope time view, UP/DOWN moves
-the cursor and LEFT/RIGHT switches cursor selection (overrides V/div and
-timebase). Other scope views keep their own arrow meanings.
+* Scope time view, by the MOVE mode shown in the top-row tag: Scale =
+V/div (UP/DOWN) and time/div (LEFT/RIGHT, LEFT = faster); Trigger = level and
+trigger point; Position = vertical position and trigger point; Mask =
+tolerances; Cursors = move / next cursor. Other scope views keep their own
+arrow meanings.
 ```

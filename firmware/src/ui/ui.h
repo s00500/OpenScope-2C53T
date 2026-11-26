@@ -155,16 +155,6 @@ extern volatile bool          persist_enabled;
 #include "shared_mem.h"   /* waterfall history is a sub-tenant of the FFT pool region */
 extern volatile scope_view_t scope_view;
 
-/* Scope time view: what UP/DOWN adjust. false = volts/div of the active
- * channel (the default), true = the hardware trigger level. Toggled by MOVE
- * (2026-09-22). Read by the renderer to highlight the level marker. */
-extern volatile bool scope_trig_level_focus;
-
-/* Scope time view: LEFT/RIGHT move the trigger point on screen instead of
- * changing the timebase. MOVE cycles V/div -> Trig level -> Position. */
-extern volatile bool scope_hpos_focus;
-/* MOVE's fourth stage (mask tolerance), only while a mask exists. */
-extern volatile bool scope_mask_focus;
 /* Post a button press into the input queue (shell `btn`). */
 bool input_inject_button(button_id_t b);
 
@@ -178,6 +168,15 @@ void scope_ui_mask_slot_refresh(void);
 uint8_t scope_ui_trig_anchor(void);
 extern fft_result_t     fft_result;
 #endif
+
+/* Scope time view: what MOVE hands the arrow keys (ui/move_mode.h). The
+ * input task writes it; the renderer shows it as the tag in the top row and
+ * thickens the trigger level line in Trigger mode. Read the mode in force
+ * with scope_move_mode_now(): Mask and Cursors drop to Scale once the mask
+ * or the cursors are gone. */
+#include "move_mode.h"
+extern volatile uint8_t scope_move_mode;
+move_mode_t scope_move_mode_now(void);
 
 /* ═══════════════════════════════════════════════════════════════════
  * UI Drawing Function Prototypes

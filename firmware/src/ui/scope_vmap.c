@@ -49,6 +49,11 @@ void scope_vmap_fixed(scope_vmap_t *m, int16_t y_top, int16_t y_bot,
     m->full_h = full_h < 1 ? 1 : full_h;
 }
 
+void scope_vmap_offset(scope_vmap_t *m, int16_t rows)
+{
+    m->y_off = rows;
+}
+
 int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v)
 {
     int yy;
@@ -56,6 +61,7 @@ int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v)
         yy = (int)m->y_mid - ((int)v - (int)m->center) * m->full_h / 256;
     else
         yy = (int)(m->y_bot - 2) - ((int)v - (int)m->mn) * m->h / m->span;
+    yy -= m->y_off;
     if (yy < m->y_top)  yy = m->y_top;
     if (yy >= m->y_bot) yy = m->y_bot - 1;
     return (int16_t)yy;

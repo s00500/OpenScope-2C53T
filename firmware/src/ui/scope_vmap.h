@@ -40,6 +40,7 @@ typedef struct {
     int16_t y_mid;         /* fixed: the row `center` is drawn on */
     uint8_t center;        /* fixed: ADC code at y_mid */
     int     full_h;        /* rows per 256 counts at the calibrated scale */
+    int16_t y_off;         /* vertical position: rows up (MOVE -> Position) */
 } scope_vmap_t;
 
 /* Autofit over a record whose samples lie in [mn, mx]. */
@@ -49,6 +50,15 @@ void scope_vmap_autofit(scope_vmap_t *m, uint8_t mn, uint8_t mx,
 /* True scale: `center` on row y_mid, full_h rows per 256 counts. */
 void scope_vmap_fixed(scope_vmap_t *m, int16_t y_top, int16_t y_bot,
                       int16_t y_mid, uint8_t center, int full_h);
+
+/* Vertical position: draw every value `rows` higher (negative = lower).
+ * Applied after the fit, so it moves the trace without rescaling it, and
+ * clamped like everything else: a trace moved past the band edge flattens
+ * on it, the way a scope trace goes off the glass. Every renderer reads the
+ * row through scope_vmap_y(), so the trace, the trigger level line and the
+ * mask bounds move together. Call after scope_vmap_autofit/fixed (they
+ * reset it). */
+void scope_vmap_offset(scope_vmap_t *m, int16_t rows);
 
 /* The row for ADC value v, clamped into [y_top, y_bot). */
 int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v);

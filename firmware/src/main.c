@@ -351,17 +351,16 @@ static uint32_t scope_ui_epoch(const scope_state_t *s)
                             | ((uint32_t)s->ch1.coupling << 8)
                             | ((uint32_t)s->ch1.probe    << 12)
                             | ((uint32_t)s->ch1.bw_limit << 16));
-    h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->ch1.position);
     h = redraw_epoch_mix(h, (uint32_t)s->ch2.enabled
                             | ((uint32_t)s->ch2.vdiv_idx << 1)
                             | ((uint32_t)s->ch2.coupling << 8)
                             | ((uint32_t)s->ch2.probe    << 12)
                             | ((uint32_t)s->ch2.bw_limit << 16));
-    h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->ch2.position);
+    /* Channel positions are in scope_live_epoch() (MOVE -> Position). */
 
-    /* Trigger mode, edge and source are in scope_live_epoch(): the
-     * compositor draws everything they change (EXP-86). */
-    h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->trigger.level);
+    /* Trigger mode, edge, source and level, and the trigger point, are in
+     * scope_live_epoch(): the compositor draws everything they change
+     * (EXP-86, MOVE modes 2026-11-26). */
 
     /* Cursor state is NOT here: see scope_live_epoch(). */
 
@@ -408,6 +407,14 @@ static uint32_t scope_live_epoch(const scope_state_t *s)
                             | ((uint32_t)s->trigger.source << 8)
                             | ((uint32_t)scope_trig_menu.open << 12)
                             | ((uint32_t)scope_trig_menu.row  << 16));
+    /* MOVE (2026-11-26): the mode tag, the trigger level and point, and the
+     * vertical positions: the tag is a chip, the rest is the column stream
+     * (the positions through the shared vertical map). */
+    h = redraw_epoch_mix(h, (uint32_t)scope_move_mode_now()
+                            | ((uint32_t)(uint16_t)s->trigger.level << 8));
+    h = redraw_epoch_mix(h, ((uint32_t)(uint16_t)s->trig_x << 16)
+                            | (uint32_t)(uint16_t)s->ch1.position);
+    h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->ch2.position);
     return h;
 }
 

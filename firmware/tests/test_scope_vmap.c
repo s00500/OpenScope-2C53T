@@ -97,8 +97,48 @@ static void test_counts_per_pixel_matches_the_drawing(void)
     CHECK(scope_vmap_counts_per_pixel(&off) == 0.0f, "an unset map reports a scale");
 }
 
+/* Vertical position (MOVE -> Position, 2026-11-26): every value moves by the
+ * offset, the scale does not change, and the band clamp still holds. Both
+ * map kinds, because the default (autofit) and true scale share the field. */
+static void test_offset_moves_without_rescaling(void)
+{
+    scope_vmap_t a, b;
+    scope_vmap_autofit(&a, 60, 120, TOP, TRACE_BOT, FULL_H);
+    scope_vmap_autofit(&b, 60, 120, TOP, TRACE_BOT, FULL_H);
+    scope_vmap_offset(&b, 13);
+    int moved = 0;
+    for (int v = 60; v <= 120; v += 10) {
+        /* The record fills the band, so its top end clamps at the edge. */
+        int want = scope_vmap_y(&a, (uint8_t)v) - 13;
+        if (want < TOP) want = TOP;
+        else moved++;
+        CHECK(scope_vmap_y(&b, (uint8_t)v) == want,
+              "autofit: value %d on row %d, want %d", v, scope_vmap_y(&b, (uint8_t)v), want);
+    }
+    CHECK(moved >= 5, "only %d values moved without clamping", moved);
+    CHECK(scope_vmap_counts_per_pixel(&a) == scope_vmap_counts_per_pixel(&b),
+          "the offset changed the scale");
+
+    scope_vmap_fixed(&a, TOP, TRACE_BOT, MID, 128u, FULL_H);
+    scope_vmap_fixed(&b, TOP, TRACE_BOT, MID, 128u, FULL_H);
+    scope_vmap_offset(&b, -26);
+    CHECK(scope_vmap_y(&b, 128u) == MID + 26, "fixed: centre moved to row %d", scope_vmap_y(&b, 128u));
+
+    /* Pushed off the band: clamps to the edge, never leaves it. */
+    scope_vmap_offset(&b, 400);
+    for (int v = 0; v < 256; v += 15) {
+        const int y = scope_vmap_y(&b, (uint8_t)v);
+        CHECK(y >= TOP && y < TRACE_BOT, "offset 400: value %d on row %d", v, y);
+    }
+
+    /* A fresh fit starts with no offset (the struct is reset). */
+    scope_vmap_autofit(&b, 60, 120, TOP, TRACE_BOT, FULL_H);
+    CHECK(b.y_off == 0, "autofit kept a stale offset %d", b.y_off);
+}
+
 int main(void)
 {
+    test_offset_moves_without_rescaling();
     test_quiet_record_is_not_magnified();
     test_large_record_fills_the_band();
     test_rows_stay_in_the_band();
