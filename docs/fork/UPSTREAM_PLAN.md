@@ -40,6 +40,7 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 | 0a722fd | exp(80): GEN's absolute level after the Rigol's Self-Cal | EXP-80 + `captures/exp80` | yes | evidence for #68 |
 | aa165cc | exp(81): timebase codes 0x06..0x14 are the round ladder to 50 ppm | EXP-81 + `captures/exp81` | yes | evidence for PR #51 / #84 (a second and third unit on the same ladder) |
 | c42bbe9 | exp(83): CH1 gain per range (1-2-5 ladder), crosstalk, frequency badge | EXP-83 + `captures/exp83` | yes | evidence for a `scope_cal.c` revision (rows 4/8/9) |
+| ef70eba | cal: timebase (0x06-0x14) and gain tables (both channels, source scale 1.0) from EXP-81/83/84, guard tests rewritten; EXP-84 (TMR13/PA6 is CH2's offset reference) | `test-scope-timebase`, `test-scope-cal`, `test-scope-cursor`; fold test; screenshots | no | needs a maintainer decision upstream: it replaces unit #1's rows and overturns guards; overlaps PR #51 / #84's rows |
 
 ## How to cut an upstream PR
 
