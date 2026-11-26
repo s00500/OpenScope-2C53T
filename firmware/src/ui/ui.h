@@ -165,6 +165,9 @@ int16_t scope_ui_trig_x_actual(void);
 /* Repaint the mask pass/fail readout slot (badge row 2) -- main.c calls it
  * when scope_mask_epoch() moves. */
 void scope_ui_mask_slot_refresh(void);
+/* Repaint the measurement badges (main.c, after a volts/div or time/div
+ * change: those ride the live compositor, which does not draw the badges). */
+void scope_ui_badges_refresh(void);
 uint8_t scope_ui_trig_anchor(void);
 extern fft_result_t     fft_result;
 #endif

@@ -337,22 +337,31 @@ static uint32_t info_bar_epoch(void)
     return h;
 }
 
+/* Volts/div and time/div: the compositor redraws the trace and the info bar
+ * has its own epoch; the badges are refreshed when this changes (display
+ * loop, below). */
+static uint32_t scope_scale_epoch(const scope_state_t *s)
+{
+    return (uint32_t)s->timebase_idx | ((uint32_t)s->ch1.vdiv_idx << 8)
+           | ((uint32_t)s->ch2.vdiv_idx << 16);
+}
+
 static uint32_t scope_ui_epoch(const scope_state_t *s)
 {
     uint32_t h = REDRAW_EPOCH_SEED;
 
     h = redraw_epoch_mix(h, (uint32_t)theme_get_id());
     h = redraw_epoch_mix(h, (uint32_t)active_channel);
-    h = redraw_epoch_mix(h, (uint32_t)s->timebase_idx
-                            | ((uint32_t)s->running << 8));
+    /* Time/div and volts/div are in scope_live_epoch(): the compositor
+     * draws the trace, the bars and badges refresh on their own (MOVE Scale,
+     * 2026-11-26). */
+    h = redraw_epoch_mix(h, (uint32_t)s->running << 8);
 
     h = redraw_epoch_mix(h, (uint32_t)s->ch1.enabled
-                            | ((uint32_t)s->ch1.vdiv_idx << 1)
                             | ((uint32_t)s->ch1.coupling << 8)
                             | ((uint32_t)s->ch1.probe    << 12)
                             | ((uint32_t)s->ch1.bw_limit << 16));
     h = redraw_epoch_mix(h, (uint32_t)s->ch2.enabled
-                            | ((uint32_t)s->ch2.vdiv_idx << 1)
                             | ((uint32_t)s->ch2.coupling << 8)
                             | ((uint32_t)s->ch2.probe    << 12)
                             | ((uint32_t)s->ch2.bw_limit << 16));
@@ -415,6 +424,7 @@ static uint32_t scope_live_epoch(const scope_state_t *s)
     h = redraw_epoch_mix(h, ((uint32_t)(uint16_t)s->trig_x << 16)
                             | (uint32_t)(uint16_t)s->ch1.position);
     h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->ch2.position);
+    h = redraw_epoch_mix(h, scope_scale_epoch(s));
     return h;
 }
 
@@ -775,18 +785,43 @@ static void vDisplayTask(void *pvParameters)
              * own epoch, like the info bar, so a counter never sits stale
              * waiting for a full repaint. Time view only -- the slot belongs
              * to the time-view badge layout. */
+#ifdef FEATURE_FFT
+            const bool time_view = (scope_view == SCOPE_VIEW_TIME);
+#else
+            const bool time_view = true;
+#endif
             {
                 static uint32_t g_mask_slot_epoch;
                 uint32_t me = scope_mask_epoch();
-#ifdef FEATURE_FFT
-                const bool time_view = (scope_view == SCOPE_VIEW_TIME);
-#else
-                const bool time_view = true;
-#endif
                 if (me != g_mask_slot_epoch && time_view) {
                     dt_stage(DT_MASK_SLOT);
                     scope_ui_mask_slot_refresh();
                     g_mask_slot_epoch = me;
+                }
+            }
+            /* Measurement badges after a volts/div or time/div change, which
+             * no longer repaints the screen (MOVE Scale, 2026-11-26): once,
+             * from the first record committed at the new setting, so Vpp and
+             * Freq are not the old record read with the new scale; after
+             * ~1 s regardless (stopped, or NORMAL with nothing crossing),
+             * which is what the full repaint showed at once. */
+            {
+                static uint32_t g_scale_seen, g_badge_gen, g_badge_by;
+                static bool     g_badge_due;
+                const uint32_t se = scope_scale_epoch(ss_anim);
+                if (se != g_scale_seen) {
+                    g_scale_seen = se;
+                    g_badge_gen  = fpga_acq_frame_generation();
+                    g_badge_by   = frame + 20u;        /* 20 x 50 ms */
+                    g_badge_due  = true;
+                }
+                if (g_badge_due && time_view && scope_incremental_available(ss_anim)) {
+                    const uint32_t g = fpga_acq_frame_generation();
+                    if (((g & 1u) == 0u && g != g_badge_gen) || !ss_anim->running ||
+                        (int32_t)(frame - g_badge_by) >= 0) {
+                        scope_ui_badges_refresh();
+                        g_badge_due = false;
+                    }
                 }
             }
             if (ss_anim->running) {

@@ -61,9 +61,26 @@ Position and the trigger point move half a grid division per press (13 rows,
 16 columns); the popup shows the offset in divisions. The vertical position
 is a display offset, applied to the trace, the trigger level line and the mask
 bounds together; a trace moved past the edge of its band flattens there, and
-it is not saved across power cycles. Trigger and Position changes draw without
-blanking the screen; a Scale change repaints it (the info bar and the
-measurements change with it).
+it is not saved across power cycles. No arrow press blanks the screen; after a
+Scale change the measurements below the trace refresh from the first capture
+at the new setting (EXP-88).
+
+**On the screen:**
+
+- **Trigger point:** the small triangle under the top row of labels. It is in
+  the trigger colour where the trigger locked, and grey at the requested
+  column when nothing locked (a flat signal, free run). In Trigger and
+  Position modes a dotted line runs down from it, crossing the trigger level
+  line.
+- **Trigger level:** the dotted horizontal line with the arrow at the right
+  edge, denser in Trigger mode. A level above or below the whole signal sits
+  on the band edge, which is where NORMAL mode holds.
+- **Channel references:** a "1" / "2" flag in the channel colour on the left
+  edge of each channel's band, which moves with Position. In the default
+  autofit view it marks the middle of the channel's fitted range, which the
+  trace is centred on. It is not a measured 0 V. With the true-scale
+  graticule it marks ADC code 128, which is 0 V once the baseline has been
+  centred (`fpga scope center`).
 
 The V/div and time/div labels come from the measured tables (`scope_cal.c`,
 `scope_timebase.c`); a step without a measurement shows `--`.

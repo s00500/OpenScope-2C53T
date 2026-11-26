@@ -92,7 +92,14 @@ void draw_info_bar(void)
         meter_softkeys_draw();
         return;
     }
-    lcd_fill_rect(0, LCD_HEIGHT - 16, LCD_WIDTH, 16, th->status_bar_bg);
+    /* The scope's time-view bar is written in place, field by field (below);
+     * every other bar is cleared and redrawn. */
+    bool in_place = (current_mode == MODE_OSCILLOSCOPE);
+#ifdef FEATURE_FFT
+    if (scope_view == SCOPE_VIEW_FFT) in_place = false;
+#endif
+    if (!in_place)
+        lcd_fill_rect(0, LCD_HEIGHT - 16, LCD_WIDTH, 16, th->status_bar_bg);
 
     uint16_t ib = th->status_bar_bg;
     switch (current_mode) {
@@ -120,6 +127,17 @@ void draw_info_bar(void)
             const scope_state_t *ss = scope_state_get();
             char buf[24];
 
+            /* Written in place (2026-11-26): the rows above and below the
+             * text, the left margin, then each field as an opaque box over
+             * its own columns (4-108-155-215-320), so a volts/div or
+             * time/div change never shows a cleared bar. The bar used to be
+             * filled and redrawn, which blinked on every Scale press once
+             * those stopped repainting the whole screen. */
+            lcd_fill_rect(0, LCD_HEIGHT - 16, LCD_WIDTH, 2, ib);
+            lcd_fill_rect(0, LCD_HEIGHT - 14, 4, font_small.height, ib);
+            lcd_fill_rect(0, (uint16_t)(LCD_HEIGHT - 14 + font_small.height), LCD_WIDTH,
+                          (uint16_t)(14 - font_small.height), ib);
+
             /*
              * CH1: volts/div + coupling.
              *
@@ -135,14 +153,14 @@ void draw_info_bar(void)
             scope_cal_range_label(1u, ss->ch1.vdiv_idx, vdiv1, sizeof(vdiv1));
             snprintf(buf, sizeof(buf), "CH1:%s %s",
                      vdiv1, coupling_labels[ss->ch1.coupling]);
-            font_draw_string(4, LCD_HEIGHT - 14, buf,
-                             ss->ch1.enabled ? th->ch1 : th->text_secondary,
-                             ib, &font_small);
+            font_draw_string_box(4, LCD_HEIGHT - 14, 104, buf,
+                                 ss->ch1.enabled ? th->ch1 : th->text_secondary,
+                                 ib, &font_small, FONT_ALIGN_LEFT);
 
             /* Trigger mode */
-            font_draw_string(108, LCD_HEIGHT - 14,
-                             trigger_mode_labels[ss->trigger.mode],
-                             th->success, ib, &font_small);
+            font_draw_string_box(108, LCD_HEIGHT - 14, 47,
+                                 trigger_mode_labels[ss->trigger.mode],
+                                 th->success, ib, &font_small, FONT_ALIGN_LEFT);
 
             /*
              * Timebase, DERIVED from the measured sample rate and this
@@ -154,8 +172,8 @@ void draw_info_bar(void)
             char tb[12];
             scope_timebase_label(ss->timebase_idx, tb, sizeof(tb));
             snprintf(buf, sizeof(buf), "H=%s", tb);
-            font_draw_string(155, LCD_HEIGHT - 14, buf,
-                             th->text_primary, ib, &font_small);
+            font_draw_string_box(155, LCD_HEIGHT - 14, 60, buf,
+                                 th->text_primary, ib, &font_small, FONT_ALIGN_LEFT);
 
             /* CH2: volts/div + coupling. Per-channel by construction — CH2's
              * frontend measures a different gain from CH1's on the same range
@@ -164,9 +182,9 @@ void draw_info_bar(void)
             scope_cal_range_label(2u, ss->ch2.vdiv_idx, vdiv2, sizeof(vdiv2));
             snprintf(buf, sizeof(buf), "CH2:%s %s",
                      vdiv2, coupling_labels[ss->ch2.coupling]);
-            font_draw_string(215, LCD_HEIGHT - 14, buf,
-                             ss->ch2.enabled ? th->ch2 : th->text_secondary,
-                             ib, &font_small);
+            font_draw_string_box(215, LCD_HEIGHT - 14, LCD_WIDTH - 215, buf,
+                                 ss->ch2.enabled ? th->ch2 : th->text_secondary,
+                                 ib, &font_small, FONT_ALIGN_LEFT);
         }
         break;
     case MODE_SIGNAL_GEN: {

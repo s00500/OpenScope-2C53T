@@ -471,10 +471,11 @@ static void mask_auto_key(char *pb, size_t n)
  * Scope arrows in the time view, by MOVE mode (ui/move_mode.h)
  *
  * Mask and Cursors are dispatched before these (they own SELECT too).
- * Scale changes go through the full repaint: they change the info bar and
- * the measurement badges, which only the full path draws. Trigger and
- * Position change only what the live compositor draws, so they ride it and
- * never blank the screen.
+ * Every mode here redraws through the live compositor and never blanks the
+ * screen. Scale changes also change the info bar (its own epoch, written in
+ * place) and the measurement badges (refreshed by the display loop from the
+ * first record at the new setting); until 2026-11-26 they cleared the whole
+ * screen per press.
  * ═══════════════════════════════════════════════════════════════════ */
 
 /* UP (dir +1) / DOWN (dir -1). */
@@ -528,7 +529,8 @@ static void scope_vertical_key(scope_state_t *ss, int dir, QueueHandle_t dq)
     scope_cal_range_label((uint8_t)(active_channel + 1), ch->vdiv_idx, vd, sizeof(vd));
     snprintf(pb, sizeof(pb), vd_ok ? "CH%d %s/div" : "CH%d %s NOT SET",
              active_channel + 1, vd);
-    popup_and_redraw(dq, pb);
+    scope_show_popup(pb);
+    send_cmd(dq, DCMD_SCOPE_LIVE);
 }
 
 /* LEFT (dir -1) / RIGHT (dir +1). */
@@ -562,7 +564,8 @@ static void scope_horizontal_key(scope_state_t *ss, int dir, QueueHandle_t dq)
     char tb[12];
     scope_timebase_label(ss->timebase_idx, tb, sizeof(tb));
     snprintf(pb, sizeof(pb), tb_ok ? "H=%s/div" : "H=%s NOT SET", tb);
-    popup_and_redraw(dq, pb);
+    scope_show_popup(pb);
+    send_cmd(dq, DCMD_SCOPE_LIVE);
 }
 
 /* ═══════════════════════════════════════════════════════════════════

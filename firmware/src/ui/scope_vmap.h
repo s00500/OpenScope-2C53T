@@ -63,6 +63,13 @@ void scope_vmap_offset(scope_vmap_t *m, int16_t rows);
 /* The row for ADC value v, clamped into [y_top, y_bot). */
 int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v);
 
+/* The channel's reference row, where its marker on the left edge points:
+ * autofit, the middle of the fitted window (the trace is centred on it);
+ * fixed, the row of `center` (ADC code 128, 0 V once `fpga scope center` has
+ * parked the baseline there). Moves with the vertical position, clamped into
+ * the band like every other row. Not a measured 0 V in autofit. */
+int16_t scope_vmap_ref_y(const scope_vmap_t *m);
+
 /* ADC counts one row is worth (for the cursor readout); 0 if not set up. */
 float scope_vmap_counts_per_pixel(const scope_vmap_t *m);
 

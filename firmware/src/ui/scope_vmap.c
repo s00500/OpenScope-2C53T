@@ -67,6 +67,15 @@ int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v)
     return (int16_t)yy;
 }
 
+int16_t scope_vmap_ref_y(const scope_vmap_t *m)
+{
+    int yy = m->fixed ? (int)m->y_mid : (int)(m->y_bot - 2) - m->h / 2;
+    yy -= m->y_off;
+    if (yy < m->y_top)  yy = m->y_top;
+    if (yy >= m->y_bot) yy = m->y_bot - 1;
+    return (int16_t)yy;
+}
+
 float scope_vmap_counts_per_pixel(const scope_vmap_t *m)
 {
     if (!m->on) return 0.0f;

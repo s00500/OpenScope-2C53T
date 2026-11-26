@@ -136,8 +136,33 @@ static void test_offset_moves_without_rescaling(void)
     CHECK(b.y_off == 0, "autofit kept a stale offset %d", b.y_off);
 }
 
+/* The channel reference marker's row: on the trace's centre in autofit, on
+ * code 128 in true scale, and it moves with the position. */
+static void test_reference_row(void)
+{
+    scope_vmap_t m;
+    scope_vmap_autofit(&m, 40, 200, TOP, TRACE_BOT, FULL_H);
+    const int mid = (scope_vmap_y(&m, 40) + scope_vmap_y(&m, 200)) / 2;
+    CHECK(abs(scope_vmap_ref_y(&m) - mid) <= 1,
+          "autofit reference on row %d, trace centre %d", scope_vmap_ref_y(&m), mid);
+    const int r0 = scope_vmap_ref_y(&m);
+    scope_vmap_offset(&m, 26);
+    CHECK(scope_vmap_ref_y(&m) == r0 - 26, "offset 26: reference %d, was %d",
+          scope_vmap_ref_y(&m), r0);
+    scope_vmap_offset(&m, -500);
+    CHECK(scope_vmap_ref_y(&m) == TRACE_BOT - 1, "pushed down: %d", scope_vmap_ref_y(&m));
+
+    scope_vmap_fixed(&m, TOP, TRACE_BOT, MID, 128u, FULL_H);
+    CHECK(scope_vmap_ref_y(&m) == scope_vmap_y(&m, 128u), "fixed: reference %d, code 128 on %d",
+          scope_vmap_ref_y(&m), scope_vmap_y(&m, 128u));
+    scope_vmap_offset(&m, -13);
+    CHECK(scope_vmap_ref_y(&m) == scope_vmap_y(&m, 128u), "fixed, offset: %d vs %d",
+          scope_vmap_ref_y(&m), scope_vmap_y(&m, 128u));
+}
+
 int main(void)
 {
+    test_reference_row();
     test_offset_moves_without_rescaling();
     test_quiet_record_is_not_magnified();
     test_large_record_fills_the_band();
