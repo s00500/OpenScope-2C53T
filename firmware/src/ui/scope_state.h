@@ -173,6 +173,11 @@ typedef struct {
      * trigger once it is time-ordered (EXP-53, dev plan 2.3), so any column
      * is reachable at 1 sample per pixel. Not persisted. */
     int16_t         trig_x;
+
+    /* Developer readouts on the scope screen (2026-11-26): the SPI3 capture
+     * counter in the top row. Off by default; Settings > Oscilloscope >
+     * Debug Info, persisted (config.h `ui_debug`). */
+    bool            debug_info;
 } scope_state_t;
 
 /* ═══════════════════════════════════════════════════════════════════

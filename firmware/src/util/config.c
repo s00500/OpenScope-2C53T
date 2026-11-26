@@ -18,6 +18,18 @@
 #include <stddef.h>
 #include <string.h>
 
+/* The v3 record layout, locked (2026-11-26): `ui_debug` took the padding byte
+ * before scope_trigger_level so a v3 record still validates (see config.h).
+ * If either assertion fails, the layout moved and CONFIG_VERSION must go up. */
+_Static_assert(offsetof(device_config_t, ui_debug) == 11u,
+               "ui_debug must sit in the old padding byte at offset 11");
+_Static_assert(offsetof(device_config_t, scope_trigger_level) == 12u,
+               "scope_trigger_level moved: the v3 layout changed");
+_Static_assert(offsetof(device_config_t, siggen_frequency) == 24u,
+               "siggen_frequency moved: the v3 layout changed");
+_Static_assert(sizeof(device_config_t) == 56u,
+               "device_config_t is no longer the 56-byte v3 record");
+
 /* A config record must fit the append log's per-record limit. If someone grows
  * the struct past 1 KB this fails at compile time rather than at the first
  * save on a user's device. */

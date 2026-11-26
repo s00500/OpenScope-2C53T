@@ -94,6 +94,9 @@ static void osc_settings_adjust(int dir)
     case 7: /* Trigger Edge */
         ss->trigger.edge = (trigger_edge_t)((ss->trigger.edge + TRIG_EDGE_COUNT + dir) % TRIG_EDGE_COUNT);
         break;
+    case 8: /* Debug Info -- two states, so dir is moot */
+        ss->debug_info = !ss->debug_info;
+        break;
     }
 }
 
@@ -291,6 +294,7 @@ void input_handle_settings_ok(void)
         case 5: ss->ch2.bw_limit = false; break;
         case 6: scope_cycle_trigger_mode(ss); break;
         case 7: scope_cycle_trigger_edge(ss); break;
+        case 8: ss->debug_info = !ss->debug_info; break;
         default: break;
         }
     } else if (settings_depth == 2) {

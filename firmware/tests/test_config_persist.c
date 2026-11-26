@@ -977,6 +977,87 @@ static void test_live_settings_survive_a_power_cycle(void)
           config_load_result_name(settings_store_get_status()->load_result));
 }
 
+/* Debug Info (2026-11-26) took the padding byte at offset 11. A record the
+ * previous firmware wrote, in the v3 layout WITHOUT that field, must still
+ * load: every setting intact, Debug Info off. The struct below is that layout,
+ * field for field; its padding is zero because config_init_defaults memset
+ * the old struct too. */
+typedef struct {
+    uint32_t magic;
+    uint16_t version;
+    uint8_t  scope_ch1_vdiv, scope_ch2_vdiv, scope_timebase;
+    uint8_t  scope_trigger_mode, scope_trigger_edge;
+    int16_t  scope_trigger_level;
+    uint8_t  scope_ch1_coupling, scope_ch2_coupling;
+    bool     scope_ch1_enabled, scope_ch2_enabled;
+    uint8_t  fft_window, fft_avg_count;
+    bool     fft_max_hold;
+    uint8_t  siggen_waveform;
+    float    siggen_frequency, siggen_amplitude, siggen_offset;
+    uint8_t  display_brightness, display_persist_mode, language, startup_mode;
+    uint8_t  auto_shutdown_mins, sound_enabled;
+    uint8_t  theme, scope_ch1_probe, scope_ch2_probe;
+    uint8_t  scope_ch1_bw_limit, scope_ch2_bw_limit, scope_trigger_source;
+    uint8_t  math_enabled, math_op, meter_submode, meter_layout;
+    uint32_t checksum;
+} old_v3_config_t;
+
+static void test_a_pre_debug_v3_record_still_loads(void)
+{
+    CHECK(sizeof(old_v3_config_t) == sizeof(device_config_t),
+          "old v3 record %u bytes, new %u", (unsigned)sizeof(old_v3_config_t),
+          (unsigned)sizeof(device_config_t));
+
+    old_v3_config_t o;
+    memset(&o, 0, sizeof o);
+    o.magic = CONFIG_MAGIC;
+    o.version = CONFIG_VERSION;
+    o.scope_ch1_vdiv = 5; o.scope_ch2_vdiv = 7; o.scope_timebase = 8;
+    o.scope_trigger_mode = 1; o.scope_trigger_edge = 1; o.scope_trigger_level = -90;
+    o.scope_ch1_coupling = 1; o.scope_ch1_enabled = true; o.scope_ch2_enabled = true;
+    o.siggen_frequency = 1000.0f; o.siggen_amplitude = 3.0f;
+    o.theme = 2; o.scope_trigger_source = 1; o.meter_layout = 2;
+    uint32_t sum = 0;
+    const uint8_t *b = (const uint8_t *)&o;
+    for (size_t i = 0; i < offsetof(old_v3_config_t, checksum); i++) sum += b[i];
+    o.checksum = sum;
+
+    device_config_t n;
+    memset(&n, 0xA5, sizeof n);
+    CHECK(config_deserialize(&n, (const uint8_t *)&o, sizeof o), "old v3 record rejected");
+    CHECK(n.ui_debug == 0u, "old record must read Debug Info off (got %u)", n.ui_debug);
+    CHECK(n.scope_trigger_level == -90 && n.scope_trigger_edge == 1 && n.scope_trigger_mode == 1,
+          "trigger fields moved (%d %u %u)", n.scope_trigger_level, n.scope_trigger_edge,
+          n.scope_trigger_mode);
+    CHECK(n.scope_ch1_vdiv == 5 && n.scope_ch2_vdiv == 7 && n.scope_timebase == 8,
+          "scope fields moved");
+    CHECK(n.siggen_frequency == 1000.0f && n.theme == 2 && n.scope_trigger_source == 1 &&
+          n.meter_layout == 2, "later fields moved");
+}
+
+static void test_debug_info_survives_a_power_cycle(void)
+{
+    fresh_device();
+    power_cycle();
+    settings_store_init();
+    CHECK(!scope_state_get()->debug_info, "Debug Info must default to off");
+
+    scope_state_get()->debug_info = true;
+    settings_store_note_change(1000);
+    CHECK(settings_store_service(4000), "the change was not written");
+
+    power_cycle();
+    settings_store_init();
+    CHECK(scope_state_get()->debug_info, "Debug Info not restored");
+
+    scope_state_get()->debug_info = false;
+    settings_store_note_change(5000);
+    CHECK(settings_store_service(9000), "turning it off was not written");
+    power_cycle();
+    settings_store_init();
+    CHECK(!scope_state_get()->debug_info, "Debug Info off not restored");
+}
+
 static void test_presses_that_change_nothing_never_write(void)
 {
     fresh_device();
@@ -2224,6 +2305,8 @@ int main(void)
         run("autosave survives a tick wrap", test_autosave_survives_tick_wrap);
 
         run("live settings survive a power cycle", test_live_settings_survive_a_power_cycle);
+        run("a pre-Debug-Info v3 record still loads", test_a_pre_debug_v3_record_still_loads);
+        run("Debug Info survives a power cycle", test_debug_info_survives_a_power_cycle);
         run("presses that change nothing never write", test_presses_that_change_nothing_never_write);
         run("a change undone before settling costs nothing",
             test_a_change_undone_before_settling_costs_nothing);

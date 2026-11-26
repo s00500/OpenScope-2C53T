@@ -1727,15 +1727,18 @@ static void scope_chips_build(const scope_state_t *ss, const theme_t *th)
     const int      row0 = SCOPE_TOP;
     g_nchip = 0;
 
-    /* Top row, left to right: active channel, SPI3 counter, STOP, trigger
-     * status. Fixed widths, so a shorter text never leaves a tail behind. */
+    /* Top row, left to right: active channel, SPI3 counter (Debug Info
+     * only), STOP, trigger status. Fixed widths, so a shorter text never
+     * leaves a tail behind. */
     chip_add(4, row0, 28, 1, (active_channel == 0) ? "CH1" : "CH2",
              (active_channel == 0) ? th->ch1 : th->ch2, th->background,
              FONT_ALIGN_LEFT);
 
 #ifndef EMULATOR_BUILD
-    {
-        /* SPI3 acquisition diagnostic: the FPGA data flow without serial. */
+    if (ss->debug_info) {
+        /* SPI3 acquisition diagnostic: the FPGA data flow without serial.
+         * Behind Settings > Oscilloscope > Debug Info since 2026-11-26: a
+         * developer readout from the August 2026 bring-up, not a reading. */
         char b[24];
         uint16_t col;
         if (fpga.spi3_ok_count > 0) {

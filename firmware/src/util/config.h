@@ -75,6 +75,13 @@ typedef struct {
     uint8_t  scope_timebase;     /* Timebase index (0-20) */
     uint8_t  scope_trigger_mode; /* 0=auto, 1=normal, 2=single */
     uint8_t  scope_trigger_edge; /* 0=rising, 1=falling */
+    /* Debug Info on the scope screen, 0 = off (2026-11-26). It takes the
+     * byte that was alignment padding before scope_trigger_level, so the
+     * record keeps its v3 layout and size: a v3 record (padding zeroed by
+     * config_init_defaults, see the zero-init invariant) validates and reads
+     * as off, and nobody's saved settings reset. config.c asserts the
+     * offsets; a field anywhere else needs CONFIG_VERSION 4. */
+    uint8_t  ui_debug;
     int16_t  scope_trigger_level;
     uint8_t  scope_ch1_coupling; /* 0=DC, 1=AC, 2=GND */
     uint8_t  scope_ch2_coupling;

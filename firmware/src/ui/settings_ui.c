@@ -162,27 +162,37 @@ static void draw_settings_osc(void)
     font_draw_string_center(LCD_WIDTH / 2, 20, "Oscilloscope",
                             th->text_primary, th->background, &font_large);
 
+    /* Scroll like the top menu: MENU_VISIBLE is 7 rows, so before
+     * 2026-11-26 the eighth item (Trigger Edge) was never drawn. */
+    int scroll = 0;
+    if (settings_sub_selected >= MENU_VISIBLE)
+        scroll = settings_sub_selected - MENU_VISIBLE + 1;
+
     /* CH1 section */
-    draw_menu_item(0, 0, settings_sub_selected,
+    draw_menu_item(0, scroll, settings_sub_selected,
                    "CH1 Coupling", coupling_labels[ss->ch1.coupling], th);
-    draw_menu_item(1, 0, settings_sub_selected,
+    draw_menu_item(1, scroll, settings_sub_selected,
                    "CH1 Probe", probe_labels[ss->ch1.probe], th);
-    draw_menu_item(2, 0, settings_sub_selected,
+    draw_menu_item(2, scroll, settings_sub_selected,
                    "CH1 20M Limit", "n/a", th);   /* no hardware path known (EXP-70) */
 
     /* CH2 section */
-    draw_menu_item(3, 0, settings_sub_selected,
+    draw_menu_item(3, scroll, settings_sub_selected,
                    "CH2 Coupling", coupling_labels[ss->ch2.coupling], th);
-    draw_menu_item(4, 0, settings_sub_selected,
+    draw_menu_item(4, scroll, settings_sub_selected,
                    "CH2 Probe", probe_labels[ss->ch2.probe], th);
-    draw_menu_item(5, 0, settings_sub_selected,
+    draw_menu_item(5, scroll, settings_sub_selected,
                    "CH2 20M Limit", "n/a", th);   /* no hardware path known (EXP-70) */
 
     /* Trigger section */
-    draw_menu_item(6, 0, settings_sub_selected,
+    draw_menu_item(6, scroll, settings_sub_selected,
                    "Trigger Mode", trigger_mode_labels[ss->trigger.mode], th);
-    draw_menu_item(7, 0, settings_sub_selected,
+    draw_menu_item(7, scroll, settings_sub_selected,
                    "Trigger Edge", trigger_edge_labels[ss->trigger.edge], th);
+
+    /* Developer readouts (the SPI3 capture counter) on the scope screen. */
+    draw_menu_item(8, scroll, settings_sub_selected,
+                   "Debug Info", ss->debug_info ? "On" : "Off", th);
 }
 
 /* ═══════════════════════════════════════════════════════════════════

@@ -310,9 +310,21 @@ initialization. Selecting `Scope` keeps the normal oscilloscope startup path.
   CH2 20M Limit     [ON / OFF]
   Trigger Mode      [Auto / Normal / Single]
   Trigger Edge      [Rising / Falling]
+  Debug Info        [Off / On]
 ```
 
-Press **OK** on any item to cycle its value. **MENU** to go back.
+Press **OK** on any item to cycle its value. **MENU** to go back. The list
+scrolls: seven rows fit, so Trigger Edge and Debug Info come into view as the
+selection moves down (before 2026-11-26 Trigger Edge was never drawn).
+
+- **Debug Info** (default Off, saved): shows developer readouts on the scope
+  screen. Today that is the `SPI3:OK n` chip in the top row: n counts the
+  captures read from the FPGA that passed the checks, so a climbing number
+  means acquisition is running (it stops in STOP and while NORMAL/SINGLE
+  wait for a trigger). `SPI3:-- n [XX]` means reads timed out (XX = the
+  first byte seen), `SPI3:wait` that the FPGA is up but nothing has arrived,
+  `SPI3:off` that the FPGA is not initialised. The shell's `display` and
+  `status` commands report the same counter.
 
 ### Math / Persist Sub-menu (depth 3)
 

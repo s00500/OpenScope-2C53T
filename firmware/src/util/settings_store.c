@@ -87,6 +87,7 @@ void settings_store_capture(device_config_t *cfg)
     cfg->scope_trigger_edge    = (uint8_t)ss->trigger.edge;
     cfg->scope_trigger_source  = (uint8_t)ss->trigger.source;
     cfg->scope_trigger_level   = ss->trigger.level;
+    cfg->ui_debug              = ss->debug_info ? 1u : 0u;
 
     cfg->theme        = (uint8_t)theme_get_id();
     cfg->math_enabled = math_enabled ? 1u : 0u;
@@ -123,6 +124,7 @@ void settings_store_apply(const device_config_t *cfg)
     ss->trigger.source  = (trigger_source_t)clamp_idx(cfg->scope_trigger_source, TRIG_SRC_COUNT,
                                                       TRIG_SRC_CH1);
     ss->trigger.level   = clamp_level(cfg->scope_trigger_level);
+    ss->debug_info      = (cfg->ui_debug != 0u);
 
     theme_set((theme_id_t)clamp_idx(cfg->theme, THEME_COUNT, THEME_DARK_BLUE));
 
