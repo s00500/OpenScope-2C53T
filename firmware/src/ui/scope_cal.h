@@ -10,7 +10,14 @@
  *
  * WHERE THE NUMBERS COME FROM
  * ---------------------------
- * docs/experiments/2026-08-17-08-per-range-gain-ladders.md, bench unit #1.
+ * Since 2026-11-26: EXP-83 (CH1) and EXP-84 (CH2), my unit. The onboard
+ * generator's DC levels into each input by a cable, its volts taken from a
+ * self-calibrated Rigol DS1104Z (EXP-80). The tiers kept their ranges (5/6/7
+ * MEASURED, 4/8/9 PROVISIONAL, 0-3 NONE) but not their reasons: scope_cal.c
+ * gives the per-range evidence of that run. The rest of this section, the
+ * tier text included, is the history.
+ *
+ * Before: docs/experiments/2026-08-17-08-per-range-gain-ladders.md, bench unit #1.
  * Slope method: span measured at five drive amplitudes per range, mVpp
  * regressed against counts, so the constant noise-floor term lands in the
  * intercept instead of inflating the gain. n = 5 on every entry below.
@@ -52,6 +59,9 @@
  *
  * THE ABSOLUTE SCALE IS ONE MULTIPLY AWAY FROM CORRECT
  * ----------------------------------------------------
+ * (History: true of unit #1's rows until 2026-11-26. The current rows trace
+ * to a self-calibrated Rigol; see SCOPE_CAL_SOURCE_SCALE below. The
+ * one-multiply contract still holds.)
  * Every number here traces back to an amplitude *commanded* from the ESP32
  * signal generator, which has never been checked against a calibrated source.
  * Its frequency readback is already known to be off by ~0.82x, so assuming
@@ -69,7 +79,9 @@
  *
  * WHAT THIS TABLE IS NOT
  * ----------------------
- * - Not per-unit. These are bench unit #1's numbers compiled into the image.
+ * - Not per-unit. These are one unit's numbers compiled into the image (my
+ *   unit since 2026-11-26; bench unit #1 before), and two other units agree
+ *   within 1-3 % on ranges 5-7.
  *   Factory per-device cal exists in MCU flash at 0x08006000 (see
  *   docs/experiments and the factory-cal memory note) and our app overwrites
  *   it. Wiring that up is a separate job.
@@ -117,31 +129,18 @@ extern "C" {
 /*
  * Correction for the calibration source's true-vs-commanded amplitude.
  *
- * 0.92f, measured against a JDS6600 (crystal-referenced, ~1-2% amplitude
- * accuracy) — the raw table above was taken through the ESP32 siggen, which
- * over-reads gain ~8%, so every reported voltage at 1.0f was ~8% high.
+ * 1.0f since 2026-11-26. The rows are now absolute: they were measured against
+ * the onboard generator, whose DC transfer a self-calibrated Rigol DS1104Z
+ * read at 0.7937 mV per DAC code, the same within 0.33 % across four Rigol
+ * settings (EXP-80). Absolute accuracy is about +-1-2 %, set by the probe's
+ * ratio and the Rigol's gain, which no second reference has checked. If one
+ * does, correct THIS constant, not the rows: every row came from that one
+ * source in one session, so its error is uniform by construction.
  *
- * Provenance (two sessions, one-source-into-both, timebase 0x10, centered,
- * slope fit of span vs commanded Vpp):
- *   - EXP-20 (2026-08-21): CH1 r6 0.919, r7 0.884, DC r7 0.874.
- *   - EXP-21 (2026-08-28): JDS *CH1* driven into BOTH scope inputs in turn.
- *       raw slopes r6: CH1 25.2, CH2 25.3 cts/Vpp — identical to 0.4%, so the
- *       two frontends respond the same and ONE shared scale is correct; the
- *       earlier apparent ~5% CH1/CH2 gap was the generator's own channel
- *       mismatch, not the device. Per-channel SCALE r6 0.924 / 0.948,
- *       r5 0.943 / 0.966.
- * CH1 r6 reproduced across the two sessions to 0.5% (0.919 vs 0.924). The
- * grand center across ranges is ~0.92; the ~0.874-0.966 spread is within the
- * source's amplitude accuracy plus a mild range trend, and a single constant
- * cannot fully reconcile the stored table's own CH1-vs-CH2 row inconsistency
- * (42.95 vs 41.71 at r6, ~3%). Correcting a measured, reproduced ~8% error
- * with a constant good to ~2% is strictly better than leaving it uncorrected.
- *
- * Absolute scale is still limited by the JDS's amplitude accuracy; a
- * lab-grade source would refine (not overturn) this. See the header comment
- * above before changing, and change ONLY this rather than individual rows.
+ * History: 0.92f (2026-08-28, EXP-20/21) corrected unit #1's ESP32-based rows
+ * against a JDS6600. It does not apply to the new rows.
  */
-#define SCOPE_CAL_SOURCE_SCALE     0.92f
+#define SCOPE_CAL_SOURCE_SCALE     1.0f
 
 typedef enum {
     SCOPE_CAL_NONE = 0,     /* unusable range — caller must show ADC counts */

@@ -78,8 +78,11 @@ static void test_source_scale_is_uniform(void)
      * trusted source arrives is to change SCOPE_CAL_SOURCE_SCALE, and that
      * only works if no row has been individually nudged.
      */
-    static const float raw_ch1[] = { 14.08f, 21.83f, 42.95f, 88.42f, 279.05f, 352.17f };
-    static const float raw_ch2[] = {  9.49f, 20.96f, 41.71f, 83.79f, 223.71f, 425.00f };
+    /* EXP-83/84 (2026-11-26, my unit). Unit #1's EXP-08 rows (14.08 / 21.83 /
+     * 42.95 / 88.42 / 279.05 / 352.17 and 9.49 / 20.96 / 41.71 / 83.79 /
+     * 223.71 / 425.00, x0.92) are withdrawn; see scope_cal.c. */
+    static const float raw_ch1[] = { 7.85f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f };
+    static const float raw_ch2[] = { 7.82f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f };
 
     for (uint8_t i = 0; i < 6; i++) {
         const uint8_t r = (uint8_t)(i + 4u);
@@ -118,6 +121,21 @@ static void test_measured_tier_claims_hold(void)
         CHECK(disagreement < 0.06f,
               "r%u: channels disagree by %.1f%%, too much for tier MEASURED",
               r, (double)(disagreement * 100.0f));
+    }
+
+    /* EXP-83/84: the whole calibrated ladder is a 1-2-5 attenuator,
+     * r4->r5 2.5x, r5->r6 2x, r6->r7 2x, r7->r8 2.5x, r8->r9 2x, on both
+     * channels within 8 % (r8/r9 rest on 7-15 counts of span). */
+    {
+        const float step[] = { 2.5f, 2.0f, 2.0f, 2.5f, 2.0f };
+        for (uint8_t ch = 1; ch <= 2; ch++)
+            for (uint8_t r = 4; r <= 8; r++) {
+                const float got = scope_cal_mv_per_count(ch, (uint8_t)(r + 1u)) /
+                                  scope_cal_mv_per_count(ch, r);
+                CHECK(fabsf(got / step[r - 4] - 1.0f) < 0.08f,
+                      "ch%u r%u->r%u: step %.2f, expected ~%.1f", ch, r, r + 1,
+                      (double)got, (double)step[r - 4]);
+            }
     }
 
     /* Doubling ladder: each step up should roughly double the mV/count. */
@@ -175,18 +193,18 @@ static void test_labels(void)
     CHECK(buf[0] != '~', "r6 is MEASURED and must not be marked, got \"%s\"", buf);
     CHECK(strchr(buf, 'V') != NULL, "r6 label should carry units, got \"%s\"", buf);
 
-    /* 42.95 mV/count * 0.92 source-scale * 32 counts/div = 1.2645 V/div. */
-    CHECK(strcmp(buf, "1.26V") == 0,
-          "r6 label should be derived as 1.26V, got \"%s\"", buf);
+    /* 39.79 mV/count * 1.0 source-scale * 32 counts/div = 1.2733 V/div. */
+    CHECK(strcmp(buf, "1.27V") == 0,
+          "r6 label should be derived as 1.27V, got \"%s\"", buf);
 
     /* Provisional -> same number, marked. */
     scope_cal_range_label(1, 9, buf, sizeof(buf));
     CHECK(buf[0] == '~', "r9 is PROVISIONAL and must be marked, got \"%s\"", buf);
 
-    /* Sub-volt divisions read in mV. 21.83 * 0.92 * 32 = 642.7 mV. */
+    /* Sub-volt divisions read in mV. 20.01 * 1.0 * 32 = 640.3 mV. */
     scope_cal_range_label(1, 5, buf, sizeof(buf));
-    CHECK(strcmp(buf, "643mV") == 0,
-          "r5 label should be derived as 643mV, got \"%s\"", buf);
+    CHECK(strcmp(buf, "640mV") == 0,
+          "r5 label should be derived as 640mV, got \"%s\"", buf);
 
     /*
      * And the point of the whole exercise: the derived label must NOT equal

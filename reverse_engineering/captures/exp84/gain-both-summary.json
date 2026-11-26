@@ -1,0 +1,122 @@
+[
+ {
+  "ch": 1,
+  "range": 4,
+  "n": 2,
+  "mv_per_count": 7.847951443810922,
+  "rel_se": NaN,
+  "max_resid_counts": 5.684341886080802e-14,
+  "table_raw": 14.08,
+  "table_scaled": 12.9536
+ },
+ {
+  "ch": 1,
+  "range": 5,
+  "n": 6,
+  "mv_per_count": 20.009644760055124,
+  "rel_se": 0.0026007171555303328,
+  "max_resid_counts": 0.3079529369775287,
+  "table_raw": 21.83,
+  "table_scaled": 20.0836
+ },
+ {
+  "ch": 1,
+  "range": 6,
+  "n": 6,
+  "mv_per_count": 39.78611677912957,
+  "rel_se": 0.0023817078717436454,
+  "max_resid_counts": 0.19767709995810634,
+  "table_raw": 42.95,
+  "table_scaled": 39.514
+ },
+ {
+  "ch": 1,
+  "range": 7,
+  "n": 6,
+  "mv_per_count": 78.89545583615632,
+  "rel_se": 0.008903979866064206,
+  "max_resid_counts": 0.39567975853039883,
+  "table_raw": 88.42,
+  "table_scaled": 81.3464
+ },
+ {
+  "ch": 1,
+  "range": 8,
+  "n": 6,
+  "mv_per_count": 194.86785728773467,
+  "rel_se": 0.016725052725942824,
+  "max_resid_counts": 0.27076964506906975,
+  "table_raw": 279.05,
+  "table_scaled": 256.726
+ },
+ {
+  "ch": 1,
+  "range": 9,
+  "n": 6,
+  "mv_per_count": 404.2147124586248,
+  "rel_se": 0.031190329868972903,
+  "max_resid_counts": 0.22415511098604712,
+  "table_raw": 352.17,
+  "table_scaled": 323.99640000000005
+ },
+ {
+  "ch": 2,
+  "range": 4,
+  "n": 2,
+  "mv_per_count": 7.815815835499877,
+  "rel_se": NaN,
+  "max_resid_counts": 5.684341886080802e-14,
+  "table_raw": 9.49,
+  "table_scaled": 8.7308
+ },
+ {
+  "ch": 2,
+  "range": 5,
+  "n": 6,
+  "mv_per_count": 19.857961831331053,
+  "rel_se": 0.004639893382358767,
+  "max_resid_counts": 0.839751629857517,
+  "table_raw": 20.96,
+  "table_scaled": 19.2832
+ },
+ {
+  "ch": 2,
+  "range": 6,
+  "n": 6,
+  "mv_per_count": 39.389796112028876,
+  "rel_se": 0.01039962808941143,
+  "max_resid_counts": 0.825210477082031,
+  "table_raw": 41.71,
+  "table_scaled": 38.373200000000004
+ },
+ {
+  "ch": 2,
+  "range": 7,
+  "n": 6,
+  "mv_per_count": 77.11112176262097,
+  "rel_se": 0.011451060090011638,
+  "max_resid_counts": 0.35218332767656335,
+  "table_raw": 83.79,
+  "table_scaled": 77.08680000000001
+ },
+ {
+  "ch": 2,
+  "range": 8,
+  "n": 6,
+  "mv_per_count": 206.5345405208505,
+  "rel_se": 0.018711787715571804,
+  "max_resid_counts": 0.2525127753390155,
+  "table_raw": 223.71,
+  "table_scaled": 205.81320000000002
+ },
+ {
+  "ch": 2,
+  "range": 9,
+  "n": 6,
+  "mv_per_count": 430.4834103992932,
+  "rel_se": 0.02528695467044501,
+  "max_resid_counts": 0.14205828414263433,
+  "table_raw": 425.0,
+  "table_scaled": 391.0
+ }
+]

@@ -14,7 +14,12 @@
  *
  * WHERE THE NUMBERS COME FROM
  * ---------------------------
- * docs/experiments/2026-08-18-10-time-axis.md (the ladder) and
+ * Since 2026-11-26: docs/experiments/2026-11-26-81-every-timebase-code-is-
+ * the-round-ladder.md, my unit, against the onboard generator (exact to its
+ * crystal) with the crystal offset taken out against a Rigol. The rest of
+ * this section is how the table got there.
+ *
+ * Before: docs/experiments/2026-08-18-10-time-axis.md (the ladder) and
  * docs/experiments/2026-08-18-12-code-08-incoherent.md (what a rate must
  * survive before it is believed), bench unit #1.
  *
@@ -141,7 +146,9 @@ extern "C" {
 typedef enum {
     SCOPE_TB_NONE = 0,      /* no rate — caller must fall back to samples */
     SCOPE_TB_PROVISIONAL,   /* right order of magnitude, quantisation-limited */
-    SCOPE_TB_MEASURED,      /* fitted AND fold-checked */
+    SCOPE_TB_MEASURED,      /* fitted, and fold-checked or fitted at >= 2
+                             * tones that agree (an alias cannot: it maps
+                             * different tones inconsistently) — EXP-81 */
 } scope_tb_tier_t;
 
 /* Capture sample rate in samples/second, or 0.0f when unknown. */

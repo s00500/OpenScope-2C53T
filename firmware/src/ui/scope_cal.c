@@ -11,9 +11,23 @@
 #include <stdio.h>
 
 /*
- * mV per ADC count, bench unit #1, 2026-08-17.
- * Source: docs/experiments/2026-08-17-08-per-range-gain-ladders.md
+ * mV per ADC count at the BNC (x1), my unit, 2026-11-26.
+ * Source: docs/experiments/2026-11-26-83-loopback-ch1-gain-crosstalk-and-the-
+ * badge.md (CH1) and -84- (CH2): the onboard generator's DC levels through a
+ * cable, 6 levels per range, slope of counts against volts; the generator's
+ * volts from a self-calibrated Rigol (EXP-80, 0.7937 mV per DAC code, absolute
+ * to about +-1-2 %). Railed points excluded, so range 4 rests on two levels.
+ * Both channels in one session from one source, so SCOPE_CAL_SOURCE_SCALE is
+ * 1.0 and still the one place to correct that source later.
  *
+ * WITHDRAWN 2026-11-26: bench unit #1's rows (EXP-08, ESP32 source, x0.92
+ * from a JDS6600), which these replace:
+ *     CH1  14.08  21.83  42.95  88.42  279.05  352.17   (r4..r9, raw)
+ *     CH2   9.49  20.96  41.71  83.79  223.71  425.00
+ * Scaled by 0.92, rows 5/6 agreed with my unit within 1 %, row 7 was 3 %
+ * high, and the provisional rows 4/8/9 were 25-65 % off.
+ *
+ * History, unchanged:
  * 0.0f means "this range produced no usable span at any drive amplitude" —
  * it is not a missing measurement, it is a measured refusal.
  *
@@ -29,14 +43,28 @@
  */
 static const float mv_per_count[2][SCOPE_CAL_RANGE_COUNT] = {
     /*        r0     r1     r2     r3      r4      r5      r6      r7       r8       r9 */
-    /* CH1 */ { 0.0f, 0.0f, 0.0f, 0.0f,  14.08f, 21.83f, 42.95f, 88.42f, 279.05f, 352.17f },
-    /* CH2 */ { 0.0f, 0.0f, 0.0f, 0.0f,   9.49f, 20.96f, 41.71f, 83.79f, 223.71f, 425.00f },
+    /* CH1 */ { 0.0f, 0.0f, 0.0f, 0.0f,   7.85f, 20.01f, 39.79f, 78.90f, 194.87f, 404.21f },
+    /* CH2 */ { 0.0f, 0.0f, 0.0f, 0.0f,   7.82f, 19.86f, 39.39f, 77.11f, 206.53f, 430.48f },
 };
 
 /*
  * Confidence per range. Identical for both channels by construction: the
  * tier is a statement about how well the two channels AGREE, so it cannot
  * differ between them.
+ *
+ * 2026-11-26 (EXP-83/84, my unit):
+ *   r4     PROVISIONAL  channels agree (7.85 / 7.82) but only two levels fit
+ *                       below the rail, so there is no linearity check
+ *   r5     MEASURED     channels differ by 0.8 %, slope SE 0.3-0.5 %
+ *   r6     MEASURED     1.0 %, SE 0.2-1.0 %
+ *   r7     MEASURED     2.3 %, SE 0.9-1.2 %
+ *   r8     PROVISIONAL  5.8 %, SE 1.7-1.9 %: the generator's 3 V spans only
+ *                       ~15 counts here
+ *   r9     PROVISIONAL  6.3 %, SE 2.5-3.1 %: ~7 counts of span
+ * The ladder steps 2.5 / 2 / 2 / 2.5 / 2 (a 1-2-5 attenuator) and matches
+ * Stlkv's unit (20 / 40 / 80 / 200 / 400, and ~8 for range 4) within 1-3 %.
+ *
+ * Before (unit #1, EXP-08):
  *
  *   r0-r3  NONE         railed on both channels at every amplitude.
  *                       EXP-11 (2026-08-18) says more: 0/1/2 sit at 255 with

@@ -156,19 +156,21 @@ static void test_one_over_dt(void)
     r = scope_cursor_one_over_dt(code, 0);
     CHECK(r.unit == SCOPE_CURSOR_UNIT_NONE, "dx=0 must refuse");
 
-    /* No rate => no Hz either; 1/samples has no unit to fall back to. */
-    r = scope_cursor_one_over_dt(0x08u, 100);
+    /* No rate => no Hz either; 1/samples has no unit to fall back to.
+     * 0x05: since EXP-81 (2026-11-26) only 0x00-0x05 have no rate. */
+    r = scope_cursor_one_over_dt(0x05u, 100);
     CHECK(r.unit == SCOPE_CURSOR_UNIT_NONE,
-          "an INCOHERENT code must not produce a frequency");
+          "a code without a rate must not produce a frequency");
 }
 
 /* ── 2. refusal where there is no calibration ────────────────────────── */
 
 static void test_unmeasured_timebase_falls_back_to_samples(void)
 {
-    /* 0x08 is the power-on default and is INCOHERENT — measured, and the
-     * records do not reproduce. It is the code most likely to be on screen. */
-    static const uint8_t none_codes[] = { 0x00u, 0x06u, 0x08u, 0x0Au, 0x0Cu };
+    /* Since EXP-81 (2026-11-26) only 0x00-0x05 have no rate; 0x06-0x0C,
+     * which this test used to exercise (0x08 is the power-on default), are
+     * measured now and read seconds. */
+    static const uint8_t none_codes[] = { 0x00u, 0x02u, 0x04u, 0x05u };
 
     for (unsigned i = 0; i < sizeof(none_codes); i++) {
         const uint8_t code = none_codes[i];
@@ -270,17 +272,17 @@ static void test_provisional_ranges_are_marked(void)
 
 static void test_provisional_timebase_is_marked(void)
 {
-    /* 0x0D: R^2 0.9997 but only bins 4-25 of resolution, and never
-     * fold-tested at the corrected rate. */
-    CHECK(scope_timebase_get_tier(0x0Du) == SCOPE_TB_PROVISIONAL,
-          "0x0D tier changed — update this test with the evidence");
+    /* 0x06: EXP-81 has one usable tone there (1.8 cycles per record).
+     * (Until 2026-11-26 this test used 0x0D, which EXP-81 measured.) */
+    CHECK(scope_timebase_get_tier(0x06u) == SCOPE_TB_PROVISIONAL,
+          "0x06 tier changed — update this test with the evidence");
 
-    const scope_cursor_reading_t r = scope_cursor_delta_t(0x0Du, 100);
-    CHECK(r.confidence == SCOPE_CURSOR_PROVISIONAL, "0x0D must be provisional");
+    const scope_cursor_reading_t r = scope_cursor_delta_t(0x06u, 100);
+    CHECK(r.confidence == SCOPE_CURSOR_PROVISIONAL, "0x06 must be provisional");
 
     char s[16];
     scope_cursor_format(&r, s, sizeof(s));
-    CHECK(s[0] == '~', "0x0D must carry the tilde, got %s", s);
+    CHECK(s[0] == '~', "0x06 must carry the tilde, got %s", s);
 }
 
 /* ── 4. formatting ──────────────────────────────────────────────────── */
@@ -301,10 +303,10 @@ static void test_formatting(void)
     scope_cursor_format(&r, s, sizeof(s));
     CHECK(s[0] == '-', "negative dt must print a sign, got %s", s);
 
-    /* 100 samples at 12,490 S/s = 8.0064 ms. */
+    /* 100 samples at 12,500 S/s = 8.00 ms (EXP-81). */
     r = scope_cursor_delta_t(0x10u, 100);
     scope_cursor_format(&r, s, sizeof(s));
-    CHECK(strcmp(s, "8.01ms") == 0, "expected 8.01ms, got %s", s);
+    CHECK(strcmp(s, "8.00ms") == 0, "expected 8.00ms, got %s", s);
 
     /* A tiny buffer must truncate, not overflow. */
     char tiny[4];
@@ -410,7 +412,7 @@ static void negctl_source_scale_reaches_the_cursor(void)
      * would see. The raw bench figure is stated here independently of the
      * table for the same reason test_scope_cal.c states them.
      */
-    const float raw_ch1_r6_mv_per_count = 42.95f;   /* EXP-08, bench unit #1 */
+    const float raw_ch1_r6_mv_per_count = 39.79f;   /* EXP-83, my unit */
     const scope_cursor_vmap_t m = vmap(1u, 6u, 1.0f);
     const float got = scope_cursor_delta_v(&m, 1).value;
 

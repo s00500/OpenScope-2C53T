@@ -12,8 +12,33 @@
 #include <stdio.h>
 
 /*
- * Capture sample rate in S/s, indexed by reg-0x01 code, bench unit #1.
- * Source: docs/experiments/2026-08-18-10-time-axis.md and -12-.
+ * Capture sample rate in S/s, indexed by reg-0x01 code.
+ *
+ * REVISED 2026-11-26 (EXP-81, my unit). Every row below is MEASURED, and
+ * the blocks after this one are the history that led here; where they
+ * disagree with this block, this block wins.
+ *
+ * Source: the 2C53T's own generator (DAC2/TMR7, EXP-79) into CH1 by a cable.
+ * Its real frequency is the device-reported TMR7 value, exact to the MCU
+ * crystal: a Rigol DS1104Z read it +54.2 ppm high at every point from 2 Hz to
+ * 50 kHz. Per code, sines at up to four frequencies (placed at non-integer
+ * cycles per record), 6 records each, a seam-robust sine fit; fs is the
+ * generator frequency over the fitted cycles per sample. Against the
+ * generator every code from 0x07 to 0x12 came out at the round ladder minus
+ * 44-56 ppm, the tones on one code agreeing to 3e-6..1e-4. That offset is the
+ * MCU crystal (the FPGA's sample clock does not share it), so the rows are
+ * converted to seconds with the Rigol's +54.2 ppm: they land 0-10 ppm from
+ * 25 M / 12.5 M / 5 M / 2.5 M / 1.25 M / 500 k / 250 k / 125 k / 50 k / 25 k /
+ * 12.5 k / 5 k / 2.5 k / 1.25 k / 500 S/s. 0x0E and 0x0F come out at the round
+ * value to the decimal shown; that is the measurement, not a rounding.
+ * Fold test on my unit (through CH2): 19 tones above Nyquist on 0x0E-0x12
+ * alias to within 0.09 bins of where these rates put them.
+ * Cross-unit: PR #51 (unit #3) and #84 (unit #2) are within their sources'
+ * accuracy (0.01-0.2 %) of the same ladder; unit #1's EXP-17/18 rows were
+ * 0.07-0.20 % low and 0x0D 1.06 % low.
+ *
+ * History (superseded by the block above, kept per the withdraw-in-place
+ * rule): bench unit #1, docs/experiments/2026-08-18-10-time-axis.md and -12-.
  *
  * 0.0f means "no trustworthy rate", and the three reasons for that are
  * genuinely different — see the tier table below. Do not collapse them.
@@ -48,22 +73,22 @@
  * as 0.0f, and the reason is INCOHERENT rather than UNMEASURED.
  */
 static const float sample_rate[SCOPE_TIMEBASE_CODE_COUNT] = {
-    /* 0x00-0x05 */ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-    /* 0x06 */      0.0f,        /* INCOHERENT — see the block below      */
-    /* 0x07 */      0.0f,        /* INCOHERENT                            */
-    /* 0x08 */      0.0f,        /* INCOHERENT — measured, no rate exists */
-    /* 0x09 */      0.0f,        /* INCOHERENT                            */
-    /* 0x0A */      0.0f,        /* source too slow to measure (R2 -1.03)   */
-    /* 0x0B */      0.0f,        /* source too slow to measure (R2 -0.05)   */
-    /* 0x0C */      0.0f,        /* source too slow to measure (R2  0.60)   */
-    /* 0x0D */     123662.7f,   /* EXP-18 R2 0.9997 — provisional, bins 4-25 */
-    /* 0x0E */       49930.1f,   /* EXP-17 slope fit, n=37, SE 31 S/s       */
-    /* 0x0F */       24979.1f,   /* EXP-17 slope fit, n=29, SE 10 S/s       */
-    /* 0x10 */       12490.0f,   /* EXP-17 slope fit, n=49, SE  2 S/s       */
-    /* 0x11 */        4990.8f,   /* EXP-18 R2 1.0000                        */
-    /* 0x12 */        2494.9f,   /* EXP-18 R2 1.0000, fold-tested           */
-    /* 0x13 */        1250.4f,   /* EXP-18 R2 1.0000                        */
-    /* 0x14 */         500.2f,   /* EXP-18 R2 1.0000                        */
+    /* 0x00-0x05 */ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,  /* not measured here */
+    /* 0x06 */ 25001207.8f,   /* EXP-81, one usable tone (1.8 cycles) — provisional */
+    /* 0x07 */ 12500078.1f,   /* EXP-81, one usable tone (3.6 cycles) — provisional */
+    /* 0x08 */  5000009.5f,   /* EXP-81, 2 tones agree to 4e-4           */
+    /* 0x09 */  2500024.7f,   /* EXP-81, 2 tones agree to 9e-5           */
+    /* 0x0A */  1250006.2f,   /* EXP-81, 2 tones                         */
+    /* 0x0B */   499999.1f,   /* EXP-81, 3 tones                         */
+    /* 0x0C */   250000.8f,   /* EXP-81, 4 tones                         */
+    /* 0x0D */   125000.1f,   /* EXP-81, 4 tones                         */
+    /* 0x0E */    50000.0f,   /* EXP-81, 4 tones + 3 fold tones          */
+    /* 0x0F */    25000.0f,   /* EXP-81, 4 tones + 4 fold tones          */
+    /* 0x10 */    12500.0f,   /* EXP-81, 4 tones + 4 fold tones          */
+    /* 0x11 */     5000.0f,   /* EXP-81, 4 tones + 4 fold tones          */
+    /* 0x12 */     2500.0f,   /* EXP-81, 4 tones + 4 fold tones          */
+    /* 0x13 */     1250.0f,   /* EXP-81, 4 tones, median (records scatter) */
+    /* 0x14 */      500.0f,   /* EXP-81, 4 tones, median (records scatter) */
 };
 
 /*
@@ -166,6 +191,12 @@ static const float sample_rate[SCOPE_TIMEBASE_CODE_COUNT] = {
  */
 
 /*
+ * SUPERSEDED 2026-11-26 (EXP-81): 0x06-0x0C below now have measured rates.
+ * #84 found the "incoherence" was AUTO's two channel reads (~140 us apart)
+ * mixing moments, and EXP-81's CH1-only fits on these codes reproduce to
+ * 1e-4; the 0x0A-0x0C limit was the old source, which the onboard generator
+ * removes. Kept as the record of why they were empty.
+ *
  * Why each code is where it is. Three distinct kinds of "no":
  *
  *   0x06-0x09     INCOHERENT. Measured, and the records do not reproduce.
@@ -194,22 +225,22 @@ static const float sample_rate[SCOPE_TIMEBASE_CODE_COUNT] = {
  */
 static const scope_tb_tier_t tier_by_code[SCOPE_TIMEBASE_CODE_COUNT] = {
     SCOPE_TB_NONE, SCOPE_TB_NONE, SCOPE_TB_NONE, SCOPE_TB_NONE,
-    SCOPE_TB_NONE, SCOPE_TB_NONE,
-    SCOPE_TB_NONE,          /* 0x06 incoherent   */
-    SCOPE_TB_NONE,          /* 0x07 incoherent   */
-    SCOPE_TB_NONE,          /* 0x08 incoherent   */
-    SCOPE_TB_NONE,          /* 0x09 incoherent   */
-    SCOPE_TB_NONE,          /* 0x0A unmeasurable */
-    SCOPE_TB_NONE,          /* 0x0B unmeasurable */
-    SCOPE_TB_NONE,          /* 0x0C unmeasurable */
-    SCOPE_TB_PROVISIONAL,   /* 0x0D              */
-    SCOPE_TB_MEASURED,      /* 0x0E              */
-    SCOPE_TB_MEASURED,      /* 0x0F              */
-    SCOPE_TB_MEASURED,      /* 0x10              */
-    SCOPE_TB_MEASURED,      /* 0x11 EXP-18       */
-    SCOPE_TB_MEASURED,      /* 0x12 EXP-18       */
-    SCOPE_TB_MEASURED,      /* 0x13 EXP-18       */
-    SCOPE_TB_MEASURED,      /* 0x14 EXP-18       */
+    SCOPE_TB_NONE, SCOPE_TB_NONE,             /* 0x00-0x05 not measured     */
+    SCOPE_TB_PROVISIONAL,   /* 0x06 one usable tone                          */
+    SCOPE_TB_PROVISIONAL,   /* 0x07 one usable tone                          */
+    SCOPE_TB_MEASURED,      /* 0x08 EXP-81                                   */
+    SCOPE_TB_MEASURED,      /* 0x09 EXP-81                                   */
+    SCOPE_TB_MEASURED,      /* 0x0A EXP-81                                   */
+    SCOPE_TB_MEASURED,      /* 0x0B EXP-81                                   */
+    SCOPE_TB_MEASURED,      /* 0x0C EXP-81                                   */
+    SCOPE_TB_MEASURED,      /* 0x0D EXP-81                                   */
+    SCOPE_TB_MEASURED,      /* 0x0E EXP-81, fold-tested                      */
+    SCOPE_TB_MEASURED,      /* 0x0F EXP-81, fold-tested                      */
+    SCOPE_TB_MEASURED,      /* 0x10 EXP-81, fold-tested                      */
+    SCOPE_TB_MEASURED,      /* 0x11 EXP-81, fold-tested                      */
+    SCOPE_TB_MEASURED,      /* 0x12 EXP-81, fold-tested                      */
+    SCOPE_TB_MEASURED,      /* 0x13 EXP-81 + EXP-18                          */
+    SCOPE_TB_MEASURED,      /* 0x14 EXP-81 + EXP-18                          */
 };
 
 float scope_timebase_sample_rate(uint8_t code)
@@ -274,7 +305,12 @@ void scope_timebase_label(uint8_t code, char *out, uint32_t n)
 
     /* Integer formatting throughout: the shell and the LCD both build against
      * nano.specs, which has no float printf. */
-    if (s < 1e-3f) {
+    if (s < 1e-5f) {
+        /* Below 10 us one decimal: the fast codes are 1.28 / 2.56 / 6.4 us,
+         * which a whole-microsecond label would print as 1 / 3 / 6. */
+        const unsigned tenths_us = (unsigned)(s * 1e7f + 0.5f);
+        snprintf(out, n, "%s%u.%uus", mark, tenths_us / 10u, tenths_us % 10u);
+    } else if (s < 1e-3f) {
         snprintf(out, n, "%s%uus", mark, (unsigned)(s * 1e6f + 0.5f));
     } else if (s < 1.0f) {
         const unsigned hundredths_ms = (unsigned)(s * 1e5f + 0.5f);

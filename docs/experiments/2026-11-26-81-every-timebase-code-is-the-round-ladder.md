@@ -109,3 +109,26 @@ for the fast codes, where AUTO's two channel reads are 140 µs apart).
   rows are "tidied" to the round ladder, a guard written when nobody had
   measured them that precisely). PR #51 and #84 are the upstream homes for
   this evidence.
+
+## Addendum (same day): fold test and second tones, through CH2
+
+With the cable moved to CH2 (`captures/exp84/fold.py`, `fold-*.json`), 4
+records per tone:
+
+- **Fold test, 0x0E-0x12:** 19 tones above Nyquist (e.g. 30, 36.9, 45.3 kHz
+  at 0x0E; 7.0-23.1 kHz at 0x10) land within **0.09 bins** of the alias these
+  rates predict (most within 0.01). Aliasing depends only on f/fs, so this
+  tests the rates themselves, and it ran through the other channel.
+- **Second tones:** 0x08 at 50 kHz gives 4,997,755 (−397 ppm against the first
+  tone, 9 cycles per record); 0x09 at 50 kHz gives 2,499,665 (−90 ppm).
+- **0x06 / 0x07 at 30 kHz** (0.7 and 1.4 cycles per record): the fit fails
+  (8.1 M / 6.4 M). Below ~2 cycles the method does not work, so these two codes
+  rest on their single 50 kHz tone.
+
+**Written into `scope_timebase.c` (2026-11-26, the user's decision):** the
+rates above converted to seconds (x 1.0000542, the generator's offset on the
+Rigol). Tiers: 0x08-0x14 MEASURED (fold-tested on 0x0E-0x12; two to four
+tones agreeing within 4e-4 elsewhere, which an alias cannot do; the tier's
+definition in `scope_timebase.h` now says so), 0x06/0x07 PROVISIONAL (one
+usable tone), 0x00-0x05 NONE. Labels below 10 us now carry one decimal
+(0x08 reads 6.4us, 0x06 ~1.3us).
