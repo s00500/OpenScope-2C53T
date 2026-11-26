@@ -30,6 +30,7 @@
 #include "trig_edge.h"
 #include "scope_mask.h"
 #include "scope_vmap.h"
+#include "band_holes.h"
 #ifdef FEATURE_FFT
 #include "fft_live.h"
 #include "fft_test_signals.h"
@@ -91,11 +92,10 @@
  */
 #define FREQ_HOLD_FRAMES  8u
 
-/* Quick-change popup */
-#define POPUP_W         200
-#define POPUP_H         36
-#define POPUP_X         ((LCD_WIDTH - POPUP_W) / 2)
-#define POPUP_Y         ((LCD_HEIGHT - POPUP_H) / 2)
+/* Quick-change popup: centred, sized to its text (popup_geom). It used to be
+ * a fixed 200 px box with the text centred in font_large and no width check,
+ * so a longer message ("SAVE: not in this build", ~23 characters) ran past
+ * both edges of the box and the trace overpainted its ends. */
 
 /* ═══════════════════════════════════════════════════════════════════
  * Quick-change popup state (shared with main.c via extern)
@@ -142,17 +142,39 @@ void scope_show_popup(const char *text)
     }
 }
 
-static void draw_overlay_box(void)
+/* The popup box for the current text: font_large if it fits, else
+ * font_medium, the box 24 px wider than the text, centred on the screen. The
+ * scope popup and the out-of-scope overlay share it, and the live compositor
+ * cuts its hole from the same rectangle (popup_rect). */
+static const font_t *popup_geom(uint16_t *px, uint16_t *py, uint16_t *pw, uint16_t *ph)
 {
-    const theme_t *th = theme_get();
     const font_t *f = &font_large;
     uint16_t tw = font_string_width(popup_text, f);
     if (tw > LCD_WIDTH - 28) { f = &font_medium; tw = font_string_width(popup_text, f); }
     uint16_t w = tw + 24;
     if (w > LCD_WIDTH - 4) w = LCD_WIDTH - 4;
     uint16_t h = (uint16_t)(f->height + 12);
-    uint16_t x = (uint16_t)((LCD_WIDTH - w) / 2);
-    uint16_t y = (uint16_t)((LCD_HEIGHT - h) / 2);
+    *px = (uint16_t)((LCD_WIDTH - w) / 2);
+    *py = (uint16_t)((LCD_HEIGHT - h) / 2);
+    *pw = w;
+    *ph = h;
+    return f;
+}
+
+static band_rect_t popup_rect(void)
+{
+    band_rect_t r;
+    (void)popup_geom(&r.x, &r.y, &r.w, &r.h);
+    return r;
+}
+
+/* Writes every pixel of the box once (border, fills, string box), so it can
+ * be painted over a live trace without a blank frame. */
+static void draw_overlay_box(void)
+{
+    const theme_t *th = theme_get();
+    uint16_t x, y, w, h;
+    const font_t *f = popup_geom(&x, &y, &w, &h);
     lcd_fill_rect(x, y, w, 1, th->highlight);
     lcd_fill_rect(x, y + h - 1, w, 1, th->highlight);
     lcd_fill_rect(x, y + 1, 1, h - 2, th->highlight);
@@ -224,47 +246,49 @@ void draw_scope_grid(void)
 /* trig_y comes from trigger_marker_y_*() below: the row where the HARDWARE
  * fires, not `level` pixels above centre (which is what this drew until
  * 2026-09-22, unrelated to an autofit trace). */
+/* The right-edge trigger arrow (pointing left at the level) and the small
+ * edge arrow beside it, as a pixel test: true if (x, y) is part of the shape.
+ * Both renderers draw it through this, the full path over a bounding box and
+ * the live compositor per pixel. It was full-path only until 2026-11-26, so
+ * the first live frame after any repaint erased it. */
+static bool trig_arrow_px(int x, int y, int trig_y, bool rising)
+{
+    const int ax = LCD_WIDTH - 1;
+    const int dx = ax - x;          /* 0 at the right edge */
+    const int dy = y - trig_y;
+    if (dx < 0 || dx > 7 || dy < -2 || dy > 2) return false;
+
+    /* Level arrow: a 5 px shaft with two diagonal barbs. */
+    if (dy == 0 && dx <= 4) return true;
+    if ((dx == 1 && (dy == -1 || dy == 1)) || (dx == 2 && (dy == -2 || dy == 2)))
+        return true;
+
+    /* Edge arrow at ax-6: a 4 px stem pointing up (rising) or down, with a
+     * crossbar at the level. */
+    if (dx == 6) return rising ? (dy >= -1) : (dy <= 1);
+    if ((dx == 5 || dx == 7) && dy == 0) return true;
+    return false;
+}
+
+/* trig_y comes from trigger_marker_y_*() below: the row where the HARDWARE
+ * fires, not `level` pixels above centre (which is what this drew until
+ * 2026-09-22, unrelated to an autofit trace). */
 static void draw_trigger_indicator(const scope_state_t *ss, const theme_t *th,
                                    int16_t trig_y)
 {
     if (trig_y < SCOPE_TOP + 2) trig_y = SCOPE_TOP + 2;
     if (trig_y > TRACE_BOT - 3) trig_y = TRACE_BOT - 3;
 
-    /* Right-edge arrow: small triangle pointing left */
-    uint16_t ax = LCD_WIDTH - 1;
-    lcd_set_pixel(ax,     (uint16_t)trig_y, th->trigger);
-    lcd_set_pixel(ax - 1, (uint16_t)trig_y, th->trigger);
-    lcd_set_pixel(ax - 2, (uint16_t)trig_y, th->trigger);
-    lcd_set_pixel(ax - 3, (uint16_t)trig_y, th->trigger);
-    lcd_set_pixel(ax - 4, (uint16_t)trig_y, th->trigger);
-    lcd_set_pixel(ax - 1, (uint16_t)(trig_y - 1), th->trigger);
-    lcd_set_pixel(ax - 2, (uint16_t)(trig_y - 2), th->trigger);
-    lcd_set_pixel(ax - 1, (uint16_t)(trig_y + 1), th->trigger);
-    lcd_set_pixel(ax - 2, (uint16_t)(trig_y + 2), th->trigger);
+    const bool rising = (ss->trigger.edge == TRIG_RISING);
+    for (int y = trig_y - 2; y <= trig_y + 2; y++)
+        for (int x = LCD_WIDTH - 8; x < LCD_WIDTH; x++)
+            if (trig_arrow_px(x, y, trig_y, rising))
+                lcd_set_pixel((uint16_t)x, (uint16_t)y, th->trigger);
 
     /* Dotted horizontal line at trigger level; denser while UP/DOWN are
      * adjusting it, so the user can see which control the arrows own. */
     for (uint16_t x = 0; x < LCD_WIDTH - 6; x += (scope_trig_level_focus ? 2u : 4u))
         lcd_set_pixel(x, (uint16_t)trig_y, th->trigger);
-
-    /* Trigger edge indicator (small arrow next to the trigger arrow) */
-    if (ss->trigger.edge == TRIG_RISING) {
-        /* Up arrow: rising edge */
-        lcd_set_pixel(ax - 6, (uint16_t)(trig_y + 2), th->trigger);
-        lcd_set_pixel(ax - 6, (uint16_t)(trig_y + 1), th->trigger);
-        lcd_set_pixel(ax - 6, (uint16_t)trig_y,       th->trigger);
-        lcd_set_pixel(ax - 6, (uint16_t)(trig_y - 1), th->trigger);
-        lcd_set_pixel(ax - 7, (uint16_t)trig_y,       th->trigger);
-        lcd_set_pixel(ax - 5, (uint16_t)trig_y,       th->trigger);
-    } else {
-        /* Down arrow: falling edge */
-        lcd_set_pixel(ax - 6, (uint16_t)(trig_y - 2), th->trigger);
-        lcd_set_pixel(ax - 6, (uint16_t)(trig_y - 1), th->trigger);
-        lcd_set_pixel(ax - 6, (uint16_t)trig_y,       th->trigger);
-        lcd_set_pixel(ax - 6, (uint16_t)(trig_y + 1), th->trigger);
-        lcd_set_pixel(ax - 7, (uint16_t)trig_y,       th->trigger);
-        lcd_set_pixel(ax - 5, (uint16_t)trig_y,       th->trigger);
-    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -305,54 +329,6 @@ static void draw_ground_markers(const scope_state_t *ss, const theme_t *th)
             font_draw_string(5, (uint16_t)(ch2_y - 5), "2",
                              th->ch2, th->ch2, &font_small);
         }
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- * Trigger status badge
- * ═══════════════════════════════════════════════════════════════════ */
-
-static void draw_trigger_status(const scope_state_t *ss, const theme_t *th)
-{
-    const char *label;
-    uint16_t color;
-
-    if (!ss->running) {
-        label = "STOP";
-        color = th->warning;
-    } else if (ss->trigger.mode == TRIG_AUTO) {
-        label = "Auto";
-        color = th->success;
-    } else if (ss->trigger.mode == TRIG_SINGLE) {
-        label = "Ready";
-        color = th->highlight;
-    } else {
-        label = "Trig'd";
-        color = th->success;
-    }
-
-    /* Draw badge at top-right of waveform area */
-    uint16_t bw = 44;
-    uint16_t bx = LCD_WIDTH - bw - 2;
-    uint16_t by = SCOPE_TOP + 2;
-    lcd_fill_rect(bx, by, bw, 14, th->background);
-    font_draw_string_right(LCD_WIDTH - 4, by + 1, label,
-                           color, th->background, &font_small);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- * Run/Stop indicator
- * ═══════════════════════════════════════════════════════════════════ */
-
-static void draw_run_stop(const scope_state_t *ss, const theme_t *th)
-{
-    if (!ss->running) {
-        /* Prominent STOP badge top-center */
-        uint16_t bw = 40;
-        uint16_t bx = (LCD_WIDTH - bw) / 2;
-        lcd_fill_rect(bx, SCOPE_TOP + 2, bw, 16, th->warning);
-        font_draw_string_center(LCD_WIDTH / 2, SCOPE_TOP + 4, "STOP",
-                                th->text_primary, th->warning, &font_small);
     }
 }
 
@@ -804,18 +780,8 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
 
 static void draw_popup_box(const theme_t *th)
 {
-    /* Dark box with border */
-    lcd_fill_rect(POPUP_X, POPUP_Y, POPUP_W, POPUP_H, th->background);
-    /* Top/bottom border */
-    lcd_fill_rect(POPUP_X, POPUP_Y, POPUP_W, 1, th->highlight);
-    lcd_fill_rect(POPUP_X, POPUP_Y + POPUP_H - 1, POPUP_W, 1, th->highlight);
-    /* Left/right border */
-    lcd_fill_rect(POPUP_X, POPUP_Y, 1, POPUP_H, th->highlight);
-    lcd_fill_rect(POPUP_X + POPUP_W - 1, POPUP_Y, 1, POPUP_H, th->highlight);
-
-    /* Centered text */
-    font_draw_string_center(LCD_WIDTH / 2, POPUP_Y + 10, popup_text,
-                            th->text_primary, th->background, &font_large);
+    (void)th;
+    draw_overlay_box();     /* the same box, sized to the text */
     popup_painted = true;
 }
 
@@ -1437,70 +1403,87 @@ void draw_demo_waveform(uint32_t frame)
  * Cursor measurement drawing
  * ═══════════════════════════════════════════════════════════════════ */
 
-static void draw_vline_dashed(uint16_t x, uint16_t y_top, uint16_t y_bot,
-                              uint16_t color, bool is_active)
+/* ═══════════════════════════════════════════════════════════════════
+ * Cursors
+ *
+ * The lines are a pixel test shared by both renderers (cursor_px), so the
+ * live compositor draws exactly what the full path draws. Their labels and
+ * the readout are chips (below). Lines stay inside the trace band
+ * [SCOPE_TOP, TRACE_BOT): below it are the badge rows, which the compositor
+ * does not touch, so a line there would be drawn by one renderer only.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Longest chip text: the dt readout is two 23-character readings. */
+#define CHIP_TEXT 64
+
+/* Does a cursor line own pixel (x, y), and in which colour? The active cursor
+ * is solid in the highlight colour, the others dashed (4 on, 4 off) in the
+ * secondary text colour. Checked H2, H1, V2, V1: the order the lines used to
+ * be painted in, later over earlier. */
+static bool cursor_px(const cursor_state_t *c, const theme_t *th,
+                      uint16_t x, uint16_t y, uint16_t *color)
 {
-    for (uint16_t y = y_top; y <= y_bot; y++) {
-        if (is_active || ((y & 7) < 4))
-            lcd_set_pixel(x, y, color);
-    }
-}
-
-static void draw_hline_dashed(uint16_t y, uint16_t x_left, uint16_t x_right,
-                              uint16_t color, bool is_active)
-{
-    for (uint16_t x = x_left; x <= x_right; x++) {
-        if (is_active || ((x & 7) < 4))
-            lcd_set_pixel(x, y, color);
-    }
-}
-
-static void draw_cursors(void)
-{
-    const scope_state_t *ss = scope_state_get();
-    const cursor_state_t *c = &ss->cursor;
-    const theme_t *th = theme_get();
-
-    if (c->mode == CURSOR_OFF) return;
-
-    uint16_t color_active   = th->highlight;
-    uint16_t color_inactive = th->text_secondary;
-
-    if (c->mode == CURSOR_VERTICAL || c->mode == CURSOR_BOTH) {
-        bool v1_active = (c->active == CURSOR_SEL_V1);
-        bool v2_active = (c->active == CURSOR_SEL_V2);
-
-        draw_vline_dashed(c->v1_x, SCOPE_TOP, SCOPE_BOT,
-                          v1_active ? color_active : color_inactive, v1_active);
-        draw_vline_dashed(c->v2_x, SCOPE_TOP, SCOPE_BOT,
-                          v2_active ? color_active : color_inactive, v2_active);
-
-        font_draw_string(c->v1_x > 12 ? c->v1_x - 10 : 0, SCOPE_TOP,
-                         "V1", v1_active ? color_active : color_inactive,
-                         v1_active ? color_active : color_inactive, &font_small);
-        font_draw_string(c->v2_x > 12 ? c->v2_x - 10 : 0, SCOPE_TOP,
-                         "V2", v2_active ? color_active : color_inactive,
-                         v2_active ? color_active : color_inactive, &font_small);
-    }
+    if (c->mode == CURSOR_OFF) return false;
+    if (y < SCOPE_TOP || y >= TRACE_BOT) return false;
 
     if (c->mode == CURSOR_HORIZONTAL || c->mode == CURSOR_BOTH) {
-        bool h1_active = (c->active == CURSOR_SEL_H1);
-        bool h2_active = (c->active == CURSOR_SEL_H2);
-
-        draw_hline_dashed(c->h1_y, 0, LCD_WIDTH - 1,
-                          h1_active ? color_active : color_inactive, h1_active);
-        draw_hline_dashed(c->h2_y, 0, LCD_WIDTH - 1,
-                          h2_active ? color_active : color_inactive, h2_active);
-
-        font_draw_string_right(LCD_WIDTH - 1,
-                               c->h1_y > SCOPE_TOP + 2 ? c->h1_y - 13 : c->h1_y + 2,
-                               "H1", h1_active ? color_active : color_inactive,
-                               h1_active ? color_active : color_inactive, &font_small);
-        font_draw_string_right(LCD_WIDTH - 1,
-                               c->h2_y > SCOPE_TOP + 2 ? c->h2_y - 13 : c->h2_y + 2,
-                               "H2", h2_active ? color_active : color_inactive,
-                               h2_active ? color_active : color_inactive, &font_small);
+        const bool a2 = (c->active == CURSOR_SEL_H2);
+        const bool a1 = (c->active == CURSOR_SEL_H1);
+        if (y == c->h2_y && (a2 || (x & 7u) < 4u)) {
+            *color = a2 ? th->highlight : th->text_secondary;
+            return true;
+        }
+        if (y == c->h1_y && (a1 || (x & 7u) < 4u)) {
+            *color = a1 ? th->highlight : th->text_secondary;
+            return true;
+        }
     }
+    if (c->mode == CURSOR_VERTICAL || c->mode == CURSOR_BOTH) {
+        const bool a2 = (c->active == CURSOR_SEL_V2);
+        const bool a1 = (c->active == CURSOR_SEL_V1);
+        if (x == c->v2_x && (a2 || (y & 7u) < 4u)) {
+            *color = a2 ? th->highlight : th->text_secondary;
+            return true;
+        }
+        if (x == c->v1_x && (a1 || (y & 7u) < 4u)) {
+            *color = a1 ? th->highlight : th->text_secondary;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Full path: walk the two columns and two rows the lines can occupy. */
+static void draw_cursors(const scope_state_t *ss, const theme_t *th)
+{
+    const cursor_state_t *c = &ss->cursor;
+    if (c->mode == CURSOR_OFF) return;
+
+    uint16_t col;
+    const uint16_t xs[2] = { c->v1_x, c->v2_x };
+    for (uint8_t i = 0; i < 2u; i++) {
+        if (xs[i] >= LCD_WIDTH) continue;
+        for (uint16_t y = SCOPE_TOP; y < TRACE_BOT; y++)
+            if (cursor_px(c, th, xs[i], y, &col))
+                lcd_set_pixel(xs[i], y, col);
+    }
+    const uint16_t ys[2] = { c->h1_y, c->h2_y };
+    for (uint8_t i = 0; i < 2u; i++) {
+        if (ys[i] < SCOPE_TOP || ys[i] >= TRACE_BOT) continue;
+        for (uint16_t x = 0; x < LCD_WIDTH; x++)
+            if (cursor_px(c, th, x, ys[i], &col))
+                lcd_set_pixel(x, ys[i], col);
+    }
+}
+
+/* The cursor readout as text, one line per axis; returns the line count.
+ * Reads the vertical scale the renderer recorded THIS frame (g_vband), so
+ * both renderers must note their bands before building chips. */
+static uint8_t cursor_readout(const scope_state_t *ss, char lines[2][CHIP_TEXT])
+{
+    const cursor_state_t *c = &ss->cursor;
+    uint8_t n = 0;
+    char buf[24], buf2[24];
 
     /*
      * Delta readout.
@@ -1531,30 +1514,17 @@ static void draw_cursors(void)
      * but left it disconnected from the tables that had just been measured.
      * The floats are gone; there is no second copy of either constant now.
      */
-    uint16_t badge_y = SCOPE_BOT - 28;
-    uint16_t badge_x = 4;
-    char buf[24];
-    char label[40];
-
     if (c->mode == CURSOR_VERTICAL || c->mode == CURSOR_BOTH) {
         const int32_t dx = (int32_t)c->v2_x - (int32_t)c->v1_x;
 
-        /* ss->timebase_idx IS the reg-0x01 code — the same field the status
+        /* ss->timebase_idx IS the reg-0x01 code: the same field the status
          * bar labels and the Freq badge derive from, so the three cannot
          * disagree about what rate is in force. */
         scope_cursor_reading_t dt = scope_cursor_delta_t(ss->timebase_idx, dx);
         scope_cursor_format(&dt, buf, sizeof(buf));
-        snprintf(label, sizeof(label), "dt=%s", buf);
-        lcd_fill_rect(badge_x, badge_y, 100, 13, th->background);
-        font_draw_string(badge_x, badge_y, label,
-                         th->highlight, th->highlight, &font_small);
-
         scope_cursor_reading_t f = scope_cursor_one_over_dt(ss->timebase_idx, dx);
-        scope_cursor_format(&f, buf, sizeof(buf));
-        snprintf(label, sizeof(label), "1/dt=%s", buf);
-        lcd_fill_rect(badge_x, badge_y + 14, 100, 13, th->background);
-        font_draw_string(badge_x, badge_y + 14, label,
-                         th->highlight, th->highlight, &font_small);
+        scope_cursor_format(&f, buf2, sizeof(buf2));
+        snprintf(lines[n++], CHIP_TEXT, "dt=%s  1/dt=%s", buf, buf2);
     }
 
     if (c->mode == CURSOR_HORIZONTAL || c->mode == CURSOR_BOTH) {
@@ -1566,7 +1536,7 @@ static void draw_cursors(void)
         /*
          * Only a band that contains BOTH cursors can convert this. In split
          * (two-channel) mode each band has its own autofit scale, so a delta
-         * spanning the two is not a voltage in either channel — it falls back
+         * spanning the two is not a voltage in either channel; it falls back
          * to pixels rather than picking one scale and hoping.
          */
         scope_cursor_vmap_t vm = { 0.0f, 0u, 0u };
@@ -1588,28 +1558,265 @@ static void draw_cursors(void)
          * two ranges, "dV=1.20V" alone does not say which frontend measured
          * it. */
         if (dv.unit == SCOPE_CURSOR_UNIT_VOLTS)
-            snprintf(label, sizeof(label), "dV%u=%s", vm.channel, buf);
+            snprintf(lines[n++], CHIP_TEXT, "dV%u=%s", vm.channel, buf);
         else
-            snprintf(label, sizeof(label), "dV=%s", buf);
-
-        uint16_t vbadge_x = (c->mode == CURSOR_BOTH) ? 120 : badge_x;
-        lcd_fill_rect(vbadge_x, badge_y, 100, 13, th->background);
-        font_draw_string(vbadge_x, badge_y, label,
-                         th->highlight, th->highlight, &font_small);
+            snprintf(lines[n++], CHIP_TEXT, "dV=%s", buf);
     }
+    return n;
+}
 
-    /* Cursor mode indicator */
+/* ═══════════════════════════════════════════════════════════════════
+ * Band chips
+ *
+ * Every piece of text that sits on the trace band is a chip: an opaque box
+ * of font_small text, painted with font_draw_string_box (every pixel written
+ * exactly once, nothing blanked first). The full path paints the chips on top
+ * of everything except the popup; the live compositor cuts them out of its
+ * column stream as holes (band_holes.h) and paints them after it, so the two
+ * renderers produce the same pixels and neither ever shows a blank state.
+ *
+ * Before this (2026-11-26) the live compositor had no holes but the popup:
+ * the top row (channel label, SPI3 counter, trigger status, STOP) was erased
+ * by the first live frame after every full repaint, and the cursor labels and
+ * readout were full-path only, which is why any cursor forced the scope back
+ * onto clear-and-repaint (the TRIGGER-button blink, EXP-85). The readout also
+ * sat on the badge rows (SCOPE_BOT - 28) and the badges painted over it.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    band_rect_t r;          /* the hole: font height + 2 * pad tall */
+    uint16_t    fg, bg;
+    uint8_t     align;      /* FONT_ALIGN_* */
+    uint8_t     pad;        /* rows of bg above and below the text */
+    char        text[CHIP_TEXT];
+} band_chip_t;
+
+#define CHIP_MAX  10u       /* holes = chips + the popup <= BAND_MAX_HOLES */
+static band_chip_t g_chip[CHIP_MAX];
+static uint8_t     g_nchip;
+
+/* What is on the glass: the chips the last paint left there. The column
+ * stream never writes inside a hole, so a chip whose rectangle, colours and
+ * text are unchanged is still correct and the live path skips it. Painting
+ * all of them every live frame cost ~12 % of the frame rate on my unit
+ * (86 -> 76 live frames per 10 s). Only the full path (which repaints every
+ * chip after its clear) and a live repaint of the chip itself refresh this. */
+static band_chip_t g_chip_shown[CHIP_MAX];
+static uint8_t     g_nchip_shown;
+
+static void chip_add(int x, int y, int w, uint8_t pad, const char *text,
+                     uint16_t fg, uint16_t bg, uint8_t align)
+{
+    if (g_nchip >= CHIP_MAX || w <= 0) return;
+    if (x < 0) x = 0;
+    if (x + w > LCD_WIDTH) w = LCD_WIDTH - x;
+    if (w <= 0) return;
+    band_chip_t *k = &g_chip[g_nchip++];
+    memset(k, 0, sizeof(*k));           /* memcmp in scope_chips_paint */
+    k->r.x = (uint16_t)x;
+    k->r.y = (uint16_t)y;
+    k->r.w = (uint16_t)w;
+    k->r.h = (uint16_t)(font_small.height + 2u * pad);
+    k->fg = fg;
+    k->bg = bg;
+    k->align = align;
+    k->pad = pad;
+    snprintf(k->text, sizeof(k->text), "%s", text);
+}
+
+static void chip_paint(const band_chip_t *k)
+{
+    const font_t *f = &font_small;
+    if (k->pad)
+        lcd_fill_rect(k->r.x, k->r.y, k->r.w, k->pad, k->bg);
+    font_draw_string_box(k->r.x, (uint16_t)(k->r.y + k->pad), k->r.w, k->text,
+                         k->fg, k->bg, f, k->align);
+    if (k->pad)
+        lcd_fill_rect(k->r.x, (uint16_t)(k->r.y + k->pad + f->height),
+                      k->r.w, k->pad, k->bg);
+}
+
+static bool rect_overlap(const band_rect_t *a, const band_rect_t *b)
+{
+    return a->x < b->x + b->w && b->x < a->x + a->w &&
+           a->y < b->y + b->h && b->y < a->y + a->h;
+}
+
+/* Build this frame's chips from the state. Call after the traces have noted
+ * their bands (vband_note): the dV readout reads them. */
+static void scope_chips_build(const scope_state_t *ss, const theme_t *th)
+{
+    const uint16_t fh   = font_small.height;
+    /* The top row starts on the band's first row, one row of padding above
+     * and below the text. Flush with the top, a column under a chip streams
+     * as ONE segment below it; two rows lower, every such column paid a
+     * second lcd_set_window, ~5 % of the live frame rate on my unit. */
+    const int      row0 = SCOPE_TOP;
+    g_nchip = 0;
+
+    /* Top row, left to right: active channel, SPI3 counter, STOP, trigger
+     * status. Fixed widths, so a shorter text never leaves a tail behind. */
+    chip_add(4, row0, 28, 1, (active_channel == 0) ? "CH1" : "CH2",
+             (active_channel == 0) ? th->ch1 : th->ch2, th->background,
+             FONT_ALIGN_LEFT);
+
+#ifndef EMULATOR_BUILD
     {
-        const char *mode_str;
-        switch (c->mode) {
-        case CURSOR_VERTICAL:    mode_str = "CUR:T"; break;
-        case CURSOR_HORIZONTAL:  mode_str = "CUR:V"; break;
-        case CURSOR_BOTH:        mode_str = "CUR:TV"; break;
-        default:                 mode_str = ""; break;
+        /* SPI3 acquisition diagnostic: the FPGA data flow without serial. */
+        char b[24];
+        uint16_t col;
+        if (fpga.spi3_ok_count > 0) {
+            snprintf(b, sizeof(b), "SPI3:OK %u", (unsigned)fpga.spi3_ok_count);
+            col = th->success;
+        } else if (fpga.spi3_total_timeouts > 0) {
+            snprintf(b, sizeof(b), "SPI3:-- %u [%02X]",
+                     (unsigned)fpga.spi3_total_timeouts, fpga.spi3_first_byte);
+            col = th->warning;
+        } else if (fpga.initialized) {
+            snprintf(b, sizeof(b), "SPI3:wait");
+            col = th->text_secondary;
+        } else {
+            snprintf(b, sizeof(b), "SPI3:off");
+            col = th->text_secondary;
         }
-        font_draw_string_right(LCD_WIDTH - 4, SCOPE_BOT - 13,
-                               mode_str, th->highlight, th->highlight, &font_small);
+        /* Sized to the text: an opaque chip hides the trace under it. */
+        chip_add(36, row0, font_string_width(b, &font_small) + 2, 1, b, col,
+                 th->background, FONT_ALIGN_LEFT);
     }
+#endif
+
+    if (!ss->running)
+        chip_add((LCD_WIDTH - 40) / 2, row0, 40, 2, "STOP",
+                 th->text_primary, th->warning, FONT_ALIGN_CENTER);
+
+    {
+        const char *label;
+        uint16_t color;
+        if (!ss->running) {
+            label = "STOP";   color = th->warning;
+        } else if (ss->trigger.mode == TRIG_AUTO) {
+            label = "Auto";   color = th->success;
+        } else if (ss->trigger.mode == TRIG_SINGLE) {
+            label = "Ready";  color = th->highlight;
+        } else {
+            label = "Trig'd"; color = th->success;
+        }
+        chip_add(LCD_WIDTH - 46, row0, 44, 1, label, color, th->background,
+                 FONT_ALIGN_RIGHT);
+    }
+
+    /* Cursor readout under the top row, and a label beside each line. */
+    const cursor_state_t *c = &ss->cursor;
+    if (c->mode != CURSOR_OFF) {
+        char lines[2][CHIP_TEXT];
+        const uint8_t n = cursor_readout(ss, lines);
+        int y = row0 + fh + 2 + 2;          /* below the top row (fh + 2 tall) */
+        for (uint8_t i = 0; i < n; i++, y += fh)
+            chip_add(4, y, font_string_width(lines[i], &font_small) + 4, 0,
+                     lines[i], th->highlight, th->background, FONT_ALIGN_LEFT);
+
+        if (c->mode == CURSOR_VERTICAL || c->mode == CURSOR_BOTH) {
+            /* Near the bottom of the band, right of the line (left of it near
+             * the right edge), clear of the top row's labels. Three rows up
+             * from the band's end, so a trace on the bottom edge (autofit
+             * puts the record's minimum there) still shows under them. */
+            const struct { uint16_t x; bool act; const char *t; } v[2] = {
+                { c->v1_x, c->active == CURSOR_SEL_V1, "V1" },
+                { c->v2_x, c->active == CURSOR_SEL_V2, "V2" },
+            };
+            for (uint8_t i = 0; i < 2u; i++) {
+                const int w = font_string_width(v[i].t, &font_small) + 2;
+                int x = v[i].x + 2;
+                if (x + w > LCD_WIDTH) x = (int)v[i].x - 1 - w;
+                chip_add(x, TRACE_BOT - fh - 3, w, 0, v[i].t,
+                         v[i].act ? th->highlight : th->text_secondary,
+                         th->background, FONT_ALIGN_LEFT);
+            }
+        }
+        if (c->mode == CURSOR_HORIZONTAL || c->mode == CURSOR_BOTH) {
+            /* Above the line (below it near the top), left of the trigger
+             * arrow at the right edge. */
+            const struct { uint16_t y; bool act; const char *t; } h[2] = {
+                { c->h1_y, c->active == CURSOR_SEL_H1, "H1" },
+                { c->h2_y, c->active == CURSOR_SEL_H2, "H2" },
+            };
+            for (uint8_t i = 0; i < 2u; i++) {
+                const int w = font_string_width(h[i].t, &font_small) + 2;
+                int y = (h[i].y >= SCOPE_TOP + fh + 1) ? (int)h[i].y - fh - 1
+                                                       : (int)h[i].y + 2;
+                if (y + fh > TRACE_BOT) y = TRACE_BOT - fh;
+                chip_add(LCD_WIDTH - 10 - w, y, w, 0, h[i].t,
+                         h[i].act ? th->highlight : th->text_secondary,
+                         th->background, FONT_ALIGN_LEFT);
+            }
+        }
+    }
+
+    /* While the popup is up, a chip under it is dropped, so the popup is
+     * the only thing in its rectangle and the stream repaints the rest. */
+    if (popup_frames > 0) {
+        const band_rect_t p = popup_rect();
+        uint8_t k = 0;
+        for (uint8_t i = 0; i < g_nchip; i++)
+            if (!rect_overlap(&g_chip[i].r, &p))
+                g_chip[k++] = g_chip[i];
+        g_nchip = k;
+    }
+}
+
+/* Full path: after its clear every chip must be painted. */
+static void scope_chips_paint(void)
+{
+    for (uint8_t i = 0; i < g_nchip; i++)
+        chip_paint(&g_chip[i]);
+    memcpy(g_chip_shown, g_chip, sizeof(g_chip));
+    g_nchip_shown = g_nchip;
+}
+
+/* Live path: paint only what differs from what is shown. A chip that
+ * appeared, moved, or changed text or colour is repainted. One that went away
+ * needs nothing itself: its rectangle is no longer a hole and the stream has
+ * just repainted it. Overlaps are the catch: a chip under a changed or
+ * vanished one, or under one being repainted, holds pixels that are not its
+ * own, so any chip overlapping something dirty is dirty too, and dirty chips
+ * are painted in list order (the full path's z-order). */
+static bool chip_shown(const band_chip_t *k, const band_chip_t *set, uint8_t n)
+{
+    for (uint8_t j = 0; j < n; j++)
+        if (memcmp(k, &set[j], sizeof(band_chip_t)) == 0)
+            return true;
+    return false;
+}
+
+static void scope_chips_paint_changed(void)
+{
+    bool dirty[CHIP_MAX];
+    for (uint8_t i = 0; i < g_nchip; i++)
+        dirty[i] = !chip_shown(&g_chip[i], g_chip_shown, g_nchip_shown);
+
+    for (uint8_t j = 0; j < g_nchip_shown; j++) {
+        if (chip_shown(&g_chip_shown[j], g_chip, g_nchip)) continue;
+        for (uint8_t i = 0; i < g_nchip; i++)          /* under a vanished one */
+            if (rect_overlap(&g_chip[i].r, &g_chip_shown[j].r))
+                dirty[i] = true;
+    }
+    for (bool grew = true; grew; ) {                   /* under a dirty one */
+        grew = false;
+        for (uint8_t i = 0; i < g_nchip; i++) {
+            if (!dirty[i]) continue;
+            for (uint8_t k = 0; k < g_nchip; k++)
+                if (!dirty[k] && rect_overlap(&g_chip[i].r, &g_chip[k].r)) {
+                    dirty[k] = true;
+                    grew = true;
+                }
+        }
+    }
+
+    for (uint8_t i = 0; i < g_nchip; i++)
+        if (dirty[i])
+            chip_paint(&g_chip[i]);
+    memcpy(g_chip_shown, g_chip, sizeof(g_chip));
+    g_nchip_shown = g_nchip;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2247,54 +2454,22 @@ void draw_scope_screen(uint32_t frame)
     draw_math_waveform(frame);
 
     /* Layer 7: Cursor lines */
-    draw_cursors();
+    draw_cursors(ss, th);
 
-    /* Layer 8: Trigger status badge */
-    draw_trigger_status(ss, th);
-
-    /* Layer 9: Run/Stop */
-    draw_run_stop(ss, th);
-
-    /* Layer 10: Measurement badges */
+    /* Layer 8: Measurement badges (below the band) */
     draw_measurement_badges(ss, th);
 
-    /* Layer 11: Quick-change popup (on top of everything) */
+    /* Layer 9: Band chips: top row, cursor labels, cursor readout. The same
+     * chips the live compositor paints, built after the traces noted their
+     * scales (the dV readout reads them). */
+    scope_chips_build(ss, th);
+    scope_chips_paint();
+
+    /* Layer 10: Quick-change popup (on top of everything) */
     draw_popup(th);
 
-    /* Active channel indicator (top-left) */
-    const char *ch_label = (active_channel == 0) ? "CH1" : "CH2";
-    uint16_t ch_color = (active_channel == 0) ? th->ch1 : th->ch2;
-    font_draw_string(4, SCOPE_TOP + 2, ch_label, ch_color, ch_color, &font_small);
-
-#ifndef EMULATOR_BUILD
-    /* SPI3 acquisition diagnostic — small text overlay top-center.
-     * Shows probing status so we can see FPGA data flow without serial. */
-    {
-        char spi3_buf[24];
-        uint16_t spi3_color;
-        if (fpga.spi3_ok_count > 0) {
-            snprintf(spi3_buf, sizeof(spi3_buf), "SPI3:OK %u",
-                     (unsigned)fpga.spi3_ok_count);
-            spi3_color = th->success;
-        } else if (fpga.spi3_total_timeouts > 0) {
-            snprintf(spi3_buf, sizeof(spi3_buf), "SPI3:-- %u [%02X]",
-                     (unsigned)fpga.spi3_total_timeouts,
-                     fpga.spi3_first_byte);
-            spi3_color = th->warning;
-        } else if (fpga.initialized) {
-            snprintf(spi3_buf, sizeof(spi3_buf), "SPI3:wait");
-            spi3_color = th->text_secondary;
-        } else {
-            snprintf(spi3_buf, sizeof(spi3_buf), "SPI3:off");
-            spi3_color = th->text_secondary;
-        }
-        font_draw_string(40, SCOPE_TOP + 2, spi3_buf,
-                         spi3_color, th->background, &font_small);
-    }
-#endif
-
 #ifdef SCOPE_DEBUG_OVERLAY
-    /* Layer 12: SPI3 debug overlay (bottom of screen) */
+    /* Layer 11: SPI3 debug overlay (bottom of screen) */
     scope_dbg_strip_dirty = 1;   /* the :1050-style full clear wiped 180-224 */
     draw_scope_debug(th);
 #endif
@@ -2310,13 +2485,19 @@ void draw_scope_screen(uint32_t frame)
  * draw_scope_screen's clear-then-redraw, which is the visible flash. Grid
  * pixels are re-plotted arithmetically (there is no framebuffer to restore
  * from; pattern mirrors draw_scope_grid exactly). Cost: one lcd_set_window
- * (~13 us) per column + streamed pixel writes ≈ 6-8 ms per frame — 20 fps
- * capable, vs the full path's blank-flash at any rate.
+ * (~13 us) per column segment + streamed pixel writes. This said "6-8 ms per
+ * frame, 20 fps capable"; measured on my unit it is ~84 ms of wall time
+ * (DWT, `display` shell command, EXP-85), preemption by the acquisition task
+ * included, which caps the scope at ~8 frames/s. Keep columns to one segment
+ * where possible: each extra segment is another lcd_set_window.
  *
- * Decorations (badges, ground markers, cursors, popups, trigger arrow) are
- * NOT drawn here. main.c falls back to draw_scope_screen whenever a popup
- * is active or cursors are on, and button DCMDs still force full redraws,
- * so those layers refresh exactly when they can change.
+ * Cursor lines and the trigger arrow are composited per pixel (cursor_px,
+ * trig_arrow_px: the same tests the full path draws with). Text on the band
+ * (the popup and the chips: top-row labels, cursor labels, cursor readout)
+ * is cut out as holes and painted opaque after the stream, so every band
+ * pixel is written exactly once per frame (band_holes.h, EXP-85). Still full
+ * path only: the badges (below the band), the ground markers and the math
+ * overlay.
  * ═══════════════════════════════════════════════════════════════════ */
 void draw_scope_live_frame(void)
 {
@@ -2369,10 +2550,17 @@ void draw_scope_live_frame(void)
 
     autofit_t a1 = { 0 };
     autofit_t a2 = { 0 };
-    if (en1)
+    vband_clear();
+    if (en1) {
         chan_map_prep(&a1, b1, en1 && en2, 0u, chan_fixed(ss, 1u), 0);
-    if (en2)
+        vband_note(0u, 1u, ss->ch1.vdiv_idx, a1.y_top, a1.y_bot,
+                   autofit_counts_per_pixel(&a1));
+    }
+    if (en2) {
         chan_map_prep(&a2, b2, en1 && en2, 1u, chan_fixed(ss, 2u), 1);
+        vband_note((en1 && en2) ? 1u : 0u, 2u, ss->ch2.vdiv_idx, a2.y_top, a2.y_bot,
+                   autofit_counts_per_pixel(&a2));
+    }
 
     /* Trigger dotted line, placed exactly as the full path places it: on the
      * trigger source's map, at the record code where the hardware fires. */
@@ -2383,14 +2571,25 @@ void draw_scope_live_frame(void)
 
     int16_t p1 = 0, p2 = 0;  /* previous column's y — vertical continuity */
 
-    /* Popup hole, clamped into the band so a future move of either rectangle
-     * cannot produce an inverted or out-of-band window. */
-    bool     hole     = (popup_frames > 0);
-    uint16_t hole_top = POPUP_Y;
-    uint16_t hole_bot = POPUP_Y + POPUP_H;
-    if (hole_top < SCOPE_TOP) hole_top = SCOPE_TOP;
-    if (hole_bot > band_bot)  hole_bot = band_bot;
-    if (hole_top >= hole_bot) hole = false;
+    const cursor_state_t *cur = &ss->cursor;
+    const bool trig_rising = (ss->trigger.edge == TRIG_RISING);
+    /* Cursor and arrow tests are hoisted out of the pixel loop: a pixel only
+     * asks cursor_px() when it sits on a cursor column or row, and the arrow
+     * only in its 8 x 5 box. 0xFFFF = no such row. */
+    const bool cur_v = (cur->mode == CURSOR_VERTICAL || cur->mode == CURSOR_BOTH);
+    const bool cur_h = (cur->mode == CURSOR_HORIZONTAL || cur->mode == CURSOR_BOTH);
+    const uint16_t cur_hy1 = cur_h ? cur->h1_y : 0xFFFFu;
+    const uint16_t cur_hy2 = cur_h ? cur->h2_y : 0xFFFFu;
+
+    /* Holes: the popup (painted once by scope_popup_overlay_tick) and this
+     * frame's chips (painted below, after the stream). */
+    scope_chips_build(ss, th);
+    band_rect_t holes[BAND_MAX_HOLES];
+    uint8_t nh = 0;
+    if (popup_frames > 0)
+        holes[nh++] = popup_rect();
+    for (uint8_t i = 0; i < g_nchip && nh < BAND_MAX_HOLES; i++)
+        holes[nh++] = g_chip[i].r;
 
     for (uint16_t x = 0; x < LCD_WIDTH; x++) {
         /* One transform, shared with the full path — see autofit_prep. */
@@ -2434,16 +2633,12 @@ void draw_scope_live_frame(void)
          * When the countdown ends the hole closes and the very next live
          * frame paints the band back over it — no full repaint at either
          * end, which is the whole point of the change. */
-        uint16_t seg_top[2], seg_bot[2];
-        uint8_t  nseg = 1;
-        seg_top[0] = SCOPE_TOP;
-        seg_bot[0] = band_bot;
-        if (hole && x >= POPUP_X && x < POPUP_X + POPUP_W) {
-            seg_bot[0] = hole_top;
-            seg_top[1] = hole_bot;
-            seg_bot[1] = band_bot;
-            nseg = 2;
-        }
+        const bool cur_col = cur_v && (x == cur->v1_x || x == cur->v2_x);
+        const bool arrow_col = (x >= LCD_WIDTH - 8);
+
+        uint16_t seg_top[BAND_MAX_SEGS], seg_bot[BAND_MAX_SEGS];
+        const uint8_t nseg = band_col_segments(x, holes, nh, SCOPE_TOP, band_bot,
+                                               seg_top, seg_bot);
 
         for (uint8_t sg = 0; sg < nseg; sg++) {
         if (seg_bot[sg] <= seg_top[sg]) continue;
@@ -2454,7 +2649,13 @@ void draw_scope_live_frame(void)
              * so CH2 wins here; trace over trigger line over grid. */
             int mr = (int)y - (int)SCOPE_TOP;          /* trigger-position marker */
             int mdx = (int)x - (int)g_trig_x_actual; if (mdx < 0) mdx = -mdx;
-            if (g_trig_x_actual >= 0 && mr >= 0 && mr < 4 && mdx <= 3 - mr)
+            if ((cur_col || y == cur_hy1 || y == cur_hy2) &&
+                cursor_px(cur, th, x, y, &c))
+                ;                                      /* cursor lines on top */
+            else if (g_trig_x_actual >= 0 && mr >= 0 && mr < 4 && mdx <= 3 - mr)
+                c = th->trigger;
+            else if (arrow_col && (uint16_t)(y - trig_y + 2) <= 4u &&
+                     trig_arrow_px((int)x, (int)y, trig_y, trig_rising))
                 c = th->trigger;
             else if (mstrip && y >= band_bot - MASK_STRIP_H &&
                      (!mdot || ((x + y) & 1u) == 0u))
@@ -2479,6 +2680,11 @@ void draw_scope_live_frame(void)
         }
         }
     }
+
+    /* The chips go into their holes last, only those that changed. Each
+     * writes every pixel of its box once, so a moved or rewritten chip never
+     * leaves a blank. */
+    scope_chips_paint_changed();
 
     /* ⚠ Measurement badges are NOT refreshed here — REVERTED 2026-08-14.
      * DO NOT REINSTATE WITHOUT READING THIS.

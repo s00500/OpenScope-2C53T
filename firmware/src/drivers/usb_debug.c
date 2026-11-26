@@ -5963,6 +5963,11 @@ static void cmd_meter_wave_args(const char *args)
  * stuck, "pass began" grows without bound, the stage says which part of the
  * loop it is in, and the saved PC / LR / stack code words feed addr2line:
  *   arm-none-eabi-addr2line -f -e build/firmware.elf <pc> <lr> <words...> */
+/* Scope redraw accounting, main.c (EXP-85). */
+extern volatile uint32_t ui_scope_full_draws, ui_scope_live_draws, ui_scope_skipped;
+extern volatile uint32_t ui_scope_full_why[4];
+extern volatile uint32_t ui_scope_live_cyc, ui_scope_live_cyc_max;
+
 static void cmd_display(void)
 {
     static const char *const st_names[] = { "running", "ready", "blocked", "suspended", "deleted" };
@@ -5978,6 +5983,18 @@ static void cmd_display(void)
                      display_stage_name(display_trace.stage),
                      (unsigned long)((now - display_trace.stage_tick) * portTICK_PERIOD_MS),
                      (unsigned)display_trace.cmd, (unsigned)display_trace.render_act);
+    /* A full repaint clears the band first, which is what flicker is; the
+     * live compositor never does. Who asked for each full one, and what a
+     * live frame costs (wall time: the display task is preemptible). */
+    usb_debug_printf("scope draws: full %lu (redraw_all %lu, draw_scope %lu, scope_live %lu, "
+                     "periodic %lu)  live %lu  skipped %lu\r\n",
+                     (unsigned long)ui_scope_full_draws,
+                     (unsigned long)ui_scope_full_why[0], (unsigned long)ui_scope_full_why[1],
+                     (unsigned long)ui_scope_full_why[2], (unsigned long)ui_scope_full_why[3],
+                     (unsigned long)ui_scope_live_draws, (unsigned long)ui_scope_skipped);
+    usb_debug_printf("live frame: last %lu us  max %lu us\r\n",
+                     (unsigned long)(ui_scope_live_cyc / (system_core_clock / 1000000u)),
+                     (unsigned long)(ui_scope_live_cyc_max / (system_core_clock / 1000000u)));
     if (!ok) {
         usb_send_str("display task: no handle\r\n");
         return;

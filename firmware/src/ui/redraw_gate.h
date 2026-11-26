@@ -85,6 +85,7 @@ typedef struct {
     uint32_t last_full_frame;  /* tick index of the last FULL draw */
     bool     data_pending;     /* samples arrived that no draw has rendered yet */
     bool     primed;           /* this screen has been painted at least once */
+    uint32_t drawn_live_epoch; /* live_epoch rendered by the last completed draw */
 } redraw_gate_t;
 
 typedef struct {
@@ -99,6 +100,13 @@ typedef struct {
     uint16_t full_min_frames;  /* floor between FULL repaints driven by data */
     uint16_t anim_tick_frames; /* cadence while `animating` */
     uint16_t idle_tick_frames; /* heartbeat when nothing else fires */
+
+    /* Hash of the state the flicker-free renderer can show by itself (the
+     * scope's cursors, EXP-85). A change here repaints, but through the
+     * compositor when it is available, so moving a cursor never blanks the
+     * screen. Last member on purpose: positional initialisers that predate
+     * it leave it 0, and a screen that never sets it never trips the arm. */
+    uint32_t live_epoch;
 } redraw_query_t;
 
 /* Force the next query to draw. Use on screen entry / hard invalidate. */
@@ -120,6 +128,16 @@ static inline void redraw_gate_mark(redraw_gate_t *g, uint32_t epoch,
     g->data_pending    = false;
 }
 
+/* The same, for a screen with a live epoch: every draw renders both. */
+static inline void redraw_gate_mark_live(redraw_gate_t *g, uint32_t epoch,
+                                         uint32_t live_epoch, uint32_t frame,
+                                         redraw_action_t action)
+{
+    if (action == REDRAW_SKIP) return;
+    redraw_gate_mark(g, epoch, frame, action);
+    g->drawn_live_epoch = live_epoch;
+}
+
 /*
  * Decide what this tick owes the LCD, and latch the decision.
  *
@@ -128,6 +146,10 @@ static inline void redraw_gate_mark(redraw_gate_t *g, uint32_t epoch,
  *                                   countdown advances one step per draw).
  *   2. epoch moved               -> FULL. A user-visible setting changed;
  *                                   badges, markers and labels must repaint.
+ *   2b. live epoch moved         -> INCREMENTAL if incremental_ok, else FULL.
+ *                                   State the compositor draws itself (the
+ *                                   scope cursors): shown at once, unthrottled
+ *                                   like arm 3, and never through a blank.
  *   3. data + incremental_ok     -> INCREMENTAL. The live trace, at the
  *                                   capture rate, with no clear. Unthrottled
  *                                   on purpose: this path never blanks.
@@ -160,6 +182,8 @@ static inline redraw_action_t redraw_gate_step(redraw_gate_t *g,
         action = REDRAW_FULL;
     } else if (q->epoch != g->drawn_epoch) {
         action = REDRAW_FULL;
+    } else if (q->live_epoch != g->drawn_live_epoch) {
+        action = q->incremental_ok ? REDRAW_INCREMENTAL : REDRAW_FULL;
     } else if (g->data_pending && q->incremental_ok) {
         action = REDRAW_INCREMENTAL;
     } else if (g->data_pending &&
@@ -172,7 +196,7 @@ static inline redraw_action_t redraw_gate_step(redraw_gate_t *g,
         action = q->incremental_ok ? REDRAW_INCREMENTAL : REDRAW_FULL;
     }
 
-    redraw_gate_mark(g, q->epoch, q->frame, action);
+    redraw_gate_mark_live(g, q->epoch, q->live_epoch, q->frame, action);
     return action;
 }
 

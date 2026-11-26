@@ -184,6 +184,22 @@ void input_set_scope_view(scope_view_t v)
 }
 #endif
 
+/* Do the arrows belong to the cursors? Only in the scope's time view: it is
+ * the only view that draws them, and TRIGGER only cycles them there. Before
+ * 2026-11-26 this was checked ahead of the FFT branches, so with a cursor
+ * left on the arrows in FFT/split/waterfall/XY moved cursors nobody could
+ * see instead of doing their view's job. */
+static bool scope_cursor_keys(const scope_state_t *ss)
+{
+    if (current_mode != MODE_OSCILLOSCOPE || ss->cursor.mode == CURSOR_OFF)
+        return false;
+#ifdef FEATURE_FFT
+    if (scope_view != SCOPE_VIEW_TIME)
+        return false;
+#endif
+    return true;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
  * Settings OK handler
  * ═══════════════════════════════════════════════════════════════════ */
@@ -511,7 +527,7 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
             {
                 /* Toggle cursor mode in time view */
                 scope_cursor_cycle_mode();
-                send_cmd(dq, cmd);
+                send_cmd(dq, DCMD_SCOPE_LIVE);
                 break;
             }
             /* Fall through for non-time views: cycle trigger mode */
@@ -759,10 +775,9 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
             send_cmd(dq, cmd);
         }
         /* Cursor movement in scope time view */
-        else if (current_mode == MODE_OSCILLOSCOPE &&
-                 ss->cursor.mode != CURSOR_OFF) {
+        else if (scope_cursor_keys(ss)) {
             scope_cursor_move(-4);
-            cmd = DCMD_DRAW_SCOPE;
+            cmd = DCMD_SCOPE_LIVE;
             send_cmd(dq, cmd);
         }
 #ifdef FEATURE_FFT
@@ -844,10 +859,9 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
             send_cmd(dq, cmd);
         }
         /* Cursor movement */
-        else if (current_mode == MODE_OSCILLOSCOPE &&
-                 ss->cursor.mode != CURSOR_OFF) {
+        else if (scope_cursor_keys(ss)) {
             scope_cursor_move(4);
-            cmd = DCMD_DRAW_SCOPE;
+            cmd = DCMD_SCOPE_LIVE;
             send_cmd(dq, cmd);
         }
 #ifdef FEATURE_FFT
@@ -934,10 +948,9 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
             send_cmd(dq, cmd);
         }
         /* Cursor: switch active cursor */
-        else if (current_mode == MODE_OSCILLOSCOPE &&
-            ss->cursor.mode != CURSOR_OFF) {
+        else if (scope_cursor_keys(ss)) {
             scope_cursor_next_sel();
-            cmd = DCMD_DRAW_SCOPE;
+            cmd = DCMD_SCOPE_LIVE;
             send_cmd(dq, cmd);
         }
         /* Meter: fuse type or previous sub-mode */
@@ -1015,10 +1028,9 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
             send_cmd(dq, cmd);
         }
         /* Cursor: switch active cursor */
-        else if (current_mode == MODE_OSCILLOSCOPE &&
-            ss->cursor.mode != CURSOR_OFF) {
+        else if (scope_cursor_keys(ss)) {
             scope_cursor_next_sel();
-            cmd = DCMD_DRAW_SCOPE;
+            cmd = DCMD_SCOPE_LIVE;
             send_cmd(dq, cmd);
         }
         /* Meter: fuse type or next sub-mode */

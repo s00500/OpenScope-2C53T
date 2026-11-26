@@ -80,11 +80,11 @@ failure is held. Full design: `docs/specs/scope/mask-pass-fail.md`.
 
 | Button | Action |
 |--------|--------|
-| **TRIGGER** | Cycle cursor mode: Off -> Vertical -> Horizontal -> Both -> Off |
-| **UP/DOWN** | Move active cursor |
-| **LEFT/RIGHT** | Switch between cursor pairs (V1/V2 or H1/H2) |
+| **TRIGGER** | Cycle cursor mode: Off -> Vertical -> Horizontal -> Both -> Off (time view only) |
+| **UP/DOWN** | Move the active cursor 4 px (UP = left / up) |
+| **LEFT/RIGHT** | Select the next cursor; both keys do the same: V1 -> V2 (vertical), H1 -> H2 (horizontal), V1 -> V2 -> H1 -> H2 (both) |
 
-When cursors are active, UP/DOWN/LEFT/RIGHT control cursors instead of V/div and timebase. The cursor readout shows delta-time (dt), frequency (1/dt), and delta-voltage (dV).
+When cursors are on, in the time view, UP/DOWN/LEFT/RIGHT control the cursors instead of V/div, timebase and trigger. In the FFT, split, waterfall and XY views the arrows keep their view's meaning even with a cursor left on. The active cursor is solid, the others dashed. The readout sits at the top left under the top row: `dt=...  1/dt=...` for the vertical pair and `dV...` for the horizontal pair (in pixels when the two H cursors span both channel bands). Labels: V1/V2 at the bottom of the trace area, H1/H2 at the right edge. Cursors draw without blanking the screen (EXP-85).
 
 ### FFT / Spectrum Views
 
@@ -319,6 +319,7 @@ Shows device info, pool status, heap free, license. **MENU** or **OK** to go bac
 | SAVE   | Screenshot       | Debug overlay    | Screenshot       | Screenshot       |
 +--------+------------------+------------------+------------------+------------------+
 
-Note: When cursors are active in Oscilloscope mode, UP/DOWN moves the cursor
-and LEFT/RIGHT switches cursor selection (overrides V/div and timebase).
+Note: When cursors are active in the Oscilloscope time view, UP/DOWN moves
+the cursor and LEFT/RIGHT switches cursor selection (overrides V/div and
+timebase). Other scope views keep their own arrow meanings.
 ```

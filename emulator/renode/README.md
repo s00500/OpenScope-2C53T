@@ -6,13 +6,38 @@ Renode-based emulation of the FNIRSI 2C53T oscilloscope's GD32F307VET6 MCU.
 
 ### Renode Installation (macOS)
 
-Renode v1.16.1 is installed at `/Applications/Renode.app`.
+Expected at `/Applications/Renode.app` (the Makefile's `renode*` targets use
+that path). Not in Homebrew. Checked with v1.17.1 (2026-11-26):
 
-To install manually:
-1. Download the macOS ARM64 portable DMG from:
-   https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1-dotnet.osx-arm64-portable.dmg
-2. Open the DMG and drag `Renode.app` to `/Applications/`
+1. `gh release download v1.17.1 -R renode/renode -p 'renode-1.17.1.osx-arm64-portable.dmg'`
+   (or the DMG from https://github.com/renode/renode/releases; the build is unsigned)
+2. Mount the DMG and copy `Renode.app` to `/Applications/`
 3. Verify: `/Applications/Renode.app/Contents/MacOS/renode --version`
+
+Renode 1.17 changed two models this platform uses: the STM32 I2C is
+`I2C.STM32F1_I2C` (was `STM32F4_I2C`), and `SPI.STM32SPI` needs a
+`series:` (F4, the same SPI block as F1). `gd32f307_2c53t.repl` has both.
+
+### Our firmware, screenshots and redraw counters
+
+`cd firmware && make emu` builds our firmware for Renode. The emulator build
+renders the scope through the same live compositor as the instrument, from a
+synthetic capture (`fpga_emu_feed`, CH1 sine and CH2 square), and ignores the
+physical key scan (Renode models no pull-ups, so every key read as held).
+Keys go through the `g_emu_key` mailbox.
+
+`scripts/emu_shot.py` drives it: press keys, save exact LCD frames, and read
+the scope's full/live/skipped redraw counters. For example, scope mode with
+vertical cursors:
+
+```bash
+python3.11 scripts/emu_shot.py --out .scratchpad/emu \
+    "wait:8 key:menu key:menu key:menu wait:4 count:t0 key:trigger wait:4 count:cursors shot:cursors"
+```
+
+A device screenshot cannot show a live frame (it pauses RUN first, so the full
+path redraws); the emulator can. The LCD model flushes its framebuffer on an
+LCD NOP, which `emu_shot.py` sends with the machine paused (EXP-85).
 
 ### Firmware
 

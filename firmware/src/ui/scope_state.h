@@ -83,9 +83,13 @@ typedef struct {
  * Cursor measurement types
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Scope waveform area boundaries (for cursor clamping) */
+/* Scope waveform area boundaries (for cursor clamping). BOT is the last row
+ * of the trace band (scope_ui.c: TRACE_BOT - 1 = BADGE_ROW2_Y - 1 = 192 in a
+ * build without SCOPE_DEBUG_OVERLAY). It was 224, the bottom of the grid, so
+ * a horizontal cursor could be pushed into the badge rows, where no trace is
+ * drawn and only the full repaint drew the line (EXP-85). */
 #define CURSOR_SCOPE_TOP       18
-#define CURSOR_SCOPE_BOT       224
+#define CURSOR_SCOPE_BOT       192
 #define CURSOR_SCOPE_LEFT      0
 #define CURSOR_SCOPE_RIGHT     319
 #define CURSOR_SCOPE_HEIGHT    (CURSOR_SCOPE_BOT - CURSOR_SCOPE_TOP)

@@ -39,6 +39,10 @@ typedef enum {
     DCMD_DRAW_SETTINGS,
     DCMD_DRAW_STATUS_BAR,
     DCMD_REDRAW_ALL,
+    /* Scope state the live compositor draws by itself changed (a cursor moved,
+     * was selected or toggled). Rendered through the redraw gate's live arm:
+     * the compositor when it can serve the view, the full path otherwise. */
+    DCMD_SCOPE_LIVE,
 #ifdef FEATURE_FFT
     DCMD_DRAW_FFT,
 #endif

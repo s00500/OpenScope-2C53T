@@ -250,9 +250,10 @@ static void check_idle_heartbeat_stays_live(bool verbose)
 
 static void check_cursors_on_live_data(bool verbose)
 {
-    /* Cursors on = the live compositor cannot serve the frame (it does not
-     * draw cursor lines), so every capture took the clear-and-repaint path.
-     * 10 s at a 20 Hz capture rate. */
+    /* A view the live compositor cannot serve takes the clear-and-repaint
+     * path for every capture. Until EXP-85 (2026-11-26) that was every frame
+     * with a cursor on; the compositor draws cursors now, so the scenario
+     * stands for the FFT views. 10 s at a 20 Hz capture rate. */
     scenario_t s = { 200, 1, 0, false, false, FW_FULL_MIN, 0, FW_IDLE_TICK };
 
     tally_t nw = run(GATE_NEW, &s);
@@ -429,6 +430,62 @@ static void check_popup_rides_the_compositor(bool verbose)
                      "repaint — that is the screen flash, got %u", full);
 }
 
+/* Drag a cursor for 3 s (LEFT held: one step every 3 ticks, the 150 ms
+ * auto-repeat) over a live trace at 20 Hz. fold = the mutant that hashes the
+ * cursor into the main epoch, which is what main.c did before EXP-85. */
+static void cursor_drag(bool fold, bool incr_ok, uint32_t *full, uint32_t *incr,
+                        uint32_t *missed)
+{
+    redraw_gate_t g = { 0, 0, 0, false, false };
+    redraw_query_t q = { 0, 0xC0A5, true, false, incr_ok, false,
+                         FW_FULL_MIN, 0, FW_IDLE_TICK };
+    uint32_t cursor = 100;
+    *full = *incr = *missed = 0;
+    (void)redraw_gate_step(&g, &q);                  /* screen entry */
+    for (uint32_t f = 1; f <= 60; f++) {
+        bool moved = (f % 3u) == 0u;
+        if (moved) cursor += 4;
+        q.frame = f;
+        q.new_data = true;
+        q.live_epoch = fold ? 0u : cursor;
+        q.epoch = fold ? (0xC0A5u ^ cursor) : 0xC0A5u;
+        redraw_action_t a = redraw_gate_step(&g, &q);
+        if (a == REDRAW_FULL) (*full)++;
+        if (a == REDRAW_INCREMENTAL) (*incr)++;
+        if (moved && a == REDRAW_SKIP) (*missed)++;
+    }
+}
+
+static void check_cursor_moves_ride_the_compositor(bool verbose)
+{
+    uint32_t full, incr, missed;
+
+    /* With the compositor available, dragging a cursor never blanks. */
+    cursor_drag(false, true, &full, &incr, &missed);
+    if (verbose)
+        printf("  cursor dragged 3 s over a live trace: full=%u incremental=%u\n",
+               full, incr);
+    CHECK(full == 0, "a cursor move took the full path %u times", full);
+    CHECK(missed == 0, "%u cursor moves were not drawn", missed);
+
+    /* Without it (demo trace, FFT), every move still shows, through FULL. */
+    cursor_drag(false, false, &full, &incr, &missed);
+    CHECK(missed == 0 && full >= 20,
+          "no compositor: moves must still draw (full=%u missed=%u)", full, missed);
+
+    /* NEGATIVE CONTROL: hashing the cursor into the main epoch (pre-EXP-85)
+     * must be caught by the first assertion. */
+    cursor_drag(true, true, &full, &incr, &missed);
+    if (verbose)
+        printf("  same drag, cursor in the main epoch (old main.c): full=%u\n",
+               full);
+    checks_run++;
+    if (full == 0) {
+        checks_failed++;
+        printf("  FAIL: the cursor-in-epoch mutant was NOT caught\n");
+    }
+}
+
 static void check_screen_entry_always_draws(bool verbose)
 {
     /* NEGATIVE CONTROL: switching away and back must repaint even though
@@ -514,6 +571,7 @@ static int run_all_checks(bool verbose)
     check_state_change_always_draws(verbose);
     check_popup_runs_at_tick_rate(verbose);
     check_popup_rides_the_compositor(verbose);
+    check_cursor_moves_ride_the_compositor(verbose);
     check_screen_entry_always_draws(verbose);
     check_siggen_clamped_presses(verbose);
     check_frame_counter_wrap(verbose);

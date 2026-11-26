@@ -278,9 +278,17 @@ volatile uint32_t ui_scope_live_draws  = 0;
 volatile uint32_t ui_scope_skipped     = 0;
 volatile uint32_t ui_siggen_full_draws = 0;
 volatile uint32_t ui_siggen_skipped    = 0;
+/* Full scope repaints by who asked (EXP-85): [0] DCMD_REDRAW_ALL,
+ * [1] DCMD_DRAW_SCOPE, [2] DCMD_SCOPE_LIVE, [3] the periodic gate. Read with
+ * `mem read` at the symbol; the flicker work needed to know which. */
+volatile uint32_t ui_scope_full_why[4];
+/* CPU cycles of the last live frame and the worst since boot (EXP-85). At
+ * 240 MHz, 240000 cycles = 1 ms. */
+volatile uint32_t ui_scope_live_cyc;
+volatile uint32_t ui_scope_live_cyc_max;
 
-static redraw_gate_t scope_gate  = { 0, 0, 0, false, false };
-static redraw_gate_t siggen_gate = { 0, 0, 0, false, false };
+static redraw_gate_t scope_gate  = { 0, 0, 0, false, false, 0 };
+static redraw_gate_t siggen_gate = { 0, 0, 0, false, false, 0 };
 
 /* Hash of everything draw_scope_screen()/draw_fft_screen()/
  * draw_waterfall_screen() read out of program state. Sample data is NOT
@@ -355,10 +363,7 @@ static uint32_t scope_ui_epoch(const scope_state_t *s)
                             | ((uint32_t)s->trigger.source << 8));
     h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->trigger.level);
 
-    h = redraw_epoch_mix(h, (uint32_t)s->cursor.mode
-                            | ((uint32_t)s->cursor.active << 4));
-    h = redraw_epoch_mix(h, ((uint32_t)s->cursor.v1_x << 16) | s->cursor.v2_x);
-    h = redraw_epoch_mix(h, ((uint32_t)s->cursor.h1_y << 16) | s->cursor.h2_y);
+    /* Cursor state is NOT here: see scope_live_epoch(). */
 
     h = redraw_epoch_mix(h, (uint32_t)math_enabled
                             | ((uint32_t)math_op         << 1)
@@ -384,6 +389,21 @@ static uint32_t scope_ui_epoch(const scope_state_t *s)
     return h;
 }
 
+/* Hash of the scope state the live compositor draws by itself: the cursors
+ * (lines, labels and readout, EXP-85). Kept out of scope_ui_epoch() so that
+ * moving a cursor repaints through the compositor instead of the
+ * clear-and-repaint path; the gate still falls back to FULL when the
+ * compositor is unavailable (demo trace, FFT views). */
+static uint32_t scope_live_epoch(const scope_state_t *s)
+{
+    uint32_t h = REDRAW_EPOCH_SEED;
+    h = redraw_epoch_mix(h, (uint32_t)s->cursor.mode
+                            | ((uint32_t)s->cursor.active << 4));
+    h = redraw_epoch_mix(h, ((uint32_t)s->cursor.v1_x << 16) | s->cursor.v2_x);
+    h = redraw_epoch_mix(h, ((uint32_t)s->cursor.h1_y << 16) | s->cursor.h2_y);
+    return h;
+}
+
 /* Hash of everything draw_siggen_screen() renders. */
 static uint32_t siggen_ui_epoch(void)
 {
@@ -402,25 +422,22 @@ static uint32_t siggen_ui_epoch(void)
 }
 
 /* Can this frame be served by the flicker-free column compositor?
- * It draws the trace band only, so anything living outside that band or
- * layered on top (popup, cursors) forces the full path. */
+ * It draws the time view's trace band, so the other views force the full
+ * path. In the emulator it renders the synthetic capture (fpga_emu_feed). */
 static bool scope_incremental_available(const scope_state_t *s)
 {
-#ifdef EMULATOR_BUILD
     (void)s;
-    return false;   /* draw_scope_live_frame reads FPGA buffers */
-#else
 #ifdef FEATURE_FFT
     if (scope_view != SCOPE_VIEW_TIME) return false;
 #endif
-    /* A popup no longer disqualifies the compositor. It used to, and that is
-     * what made every timebase change blank the whole screen ten times over:
-     * the popup pinned the renderer to the full clear-then-redraw for its
-     * entire life. draw_scope_live_frame() now steps around the popup box.
-     * Cursors still force the full path — only it draws them. */
-    return scope_acquisition_ready()
-           && s->cursor.mode == CURSOR_OFF;
-#endif
+    /* Neither a popup nor a cursor disqualifies the compositor any more.
+     * A popup used to, which made every timebase change blank the whole
+     * screen ten times over; the compositor steps around the popup box.
+     * Cursors did until EXP-85 (2026-11-26): only the full path drew them,
+     * so any cursor on meant ~2.3 clear-and-repaints a second on my unit.
+     * The compositor draws the lines per pixel and the labels and readout
+     * as chips now (scope_ui.c, band_holes.h). */
+    return scope_acquisition_ready();
 }
 
 /* Single scope render entry point, shared by the queue commands and the
@@ -439,14 +456,16 @@ static void scope_render(uint32_t frame, redraw_action_t action)
     if (scope_view == SCOPE_VIEW_XY)        { ui_scope_full_draws++;
                                               draw_xy_screen();         return; }
 #endif
-#ifndef EMULATOR_BUILD
     if (action == REDRAW_INCREMENTAL) {
         ui_scope_live_draws++;
+        const uint32_t c0 = DWT->CYCCNT;
         draw_scope_live_frame();
         scope_popup_overlay_tick();
+        const uint32_t dc = DWT->CYCCNT - c0;
+        ui_scope_live_cyc = dc;
+        if (dc > ui_scope_live_cyc_max) ui_scope_live_cyc_max = dc;
         return;
     }
-#endif
     ui_scope_full_draws++;
     draw_scope_screen(frame);
 }
@@ -588,9 +607,11 @@ static void vDisplayTask(void *pvParameters)
                 g_info_bar_epoch = info_bar_epoch();
                 /* Draw current mode's screen */
                 if (current_mode == MODE_OSCILLOSCOPE) {
+                    ui_scope_full_why[0]++;
                     scope_render(frame, REDRAW_FULL);
-                    redraw_gate_mark(&scope_gate,
+                    redraw_gate_mark_live(&scope_gate,
                                      scope_ui_epoch(scope_state_get()),
+                                     scope_live_epoch(scope_state_get()),
                                      frame, REDRAW_FULL);
                 } else if (current_mode == MODE_MULTIMETER) {
                     meter_screen_invalidate();
@@ -610,10 +631,33 @@ static void vDisplayTask(void *pvParameters)
                  * raised a popup. Marking the gate stops the periodic
                  * path from immediately repeating the same paint. */
                 if (current_mode == MODE_OSCILLOSCOPE) {
+                    ui_scope_full_why[1]++;
                     scope_render(frame, REDRAW_FULL);
-                    redraw_gate_mark(&scope_gate,
+                    redraw_gate_mark_live(&scope_gate,
                                      scope_ui_epoch(scope_state_get()),
+                                     scope_live_epoch(scope_state_get()),
                                      frame, REDRAW_FULL);
+                }
+                break;
+            case DCMD_SCOPE_LIVE:
+                /* A cursor moved, was selected or toggled (EXP-85). Until
+                 * then this was DCMD_DRAW_SCOPE, a full clear-and-repaint per
+                 * press, and LEFT/RIGHT auto-repeat at 6.7/s while held.
+                 * The gate's live arm picks the compositor whenever it can
+                 * serve the view, so a cursor drag never blanks the screen. */
+                if (current_mode == MODE_OSCILLOSCOPE) {
+                    const scope_state_t *sl = scope_state_get();
+                    redraw_query_t lq;
+                    memset(&lq, 0, sizeof(lq));
+                    lq.frame           = frame;
+                    lq.epoch           = scope_ui_epoch(sl);
+                    lq.live_epoch      = scope_live_epoch(sl);
+                    lq.incremental_ok  = scope_incremental_available(sl);
+                    lq.full_min_frames = SCOPE_FULL_MIN_FRAMES;
+                    const redraw_action_t la = redraw_gate_step(&scope_gate, &lq);
+                    if (la == REDRAW_FULL) ui_scope_full_why[2]++;
+                    if (la != REDRAW_SKIP)
+                        scope_render(frame, la);
                 }
                 break;
             case DCMD_DRAW_METER:
@@ -650,8 +694,9 @@ static void vDisplayTask(void *pvParameters)
                 if (current_mode == MODE_OSCILLOSCOPE) {
                     ui_scope_full_draws++;
                     draw_fft_screen();
-                    redraw_gate_mark(&scope_gate,
+                    redraw_gate_mark_live(&scope_gate,
                                      scope_ui_epoch(scope_state_get()),
+                                     scope_live_epoch(scope_state_get()),
                                      frame, REDRAW_FULL);
                 }
                 break;
@@ -738,6 +783,12 @@ static void vDisplayTask(void *pvParameters)
                     dt_stage(DT_HEARTBEAT);
                     fpga_scope_heartbeat();
                 }
+#else
+                /* No FPGA in Renode: a synthetic record every 150 ms, about
+                 * the rate my unit commits at the power-on timebase, so the
+                 * emulator exercises the live compositor (EXP-85). */
+                if ((frame % 3) == 0)
+                    fpga_emu_feed();
 #endif
 
                 /* Redraw decision (B2, 2026-08-13).
@@ -766,6 +817,7 @@ static void vDisplayTask(void *pvParameters)
                 redraw_query_t q;
                 q.frame            = frame;
                 q.epoch            = scope_ui_epoch(ss_anim);
+                q.live_epoch       = scope_live_epoch(ss_anim);
                 /* A live popup counts as new data so the compositor runs on
                  * every 50 ms tick while it is up. POPUP_DURATION is measured
                  * in DRAWS, and on the incremental path draws follow capture,
@@ -801,6 +853,7 @@ static void vDisplayTask(void *pvParameters)
                     ui_scope_skipped++;
                 } else {
                     display_trace.render_act = (uint8_t)act;
+                    if (act == REDRAW_FULL) ui_scope_full_why[3]++;
                     dt_stage(DT_SCOPE_RENDER);
                     scope_render(frame, act);
                 }

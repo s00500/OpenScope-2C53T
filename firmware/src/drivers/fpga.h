@@ -668,6 +668,9 @@ uint8_t fpga_bitbang_config_sequence(void);
  * Requires CRM_GPIOA/B/C and CRM_IOMUX clocks already enabled.
  */
 void fpga_init(void);
+#ifdef EMULATOR_BUILD
+void fpga_emu_feed(void);   /* synthetic capture for Renode (EXP-85) */
+#endif
 
 /*
  * Create FreeRTOS tasks for FPGA communication:

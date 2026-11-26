@@ -39,6 +39,7 @@
 #include "queue.h"
 #include "semphr.h"
 #include <string.h>
+#include <math.h>
 
 /* ═══════════════════════════════════════════════════════════════════
  * Hardware Register Access
@@ -6369,14 +6370,38 @@ bool fpga_data_ready(void)
     return data_ready;
 }
 
+#ifdef EMULATOR_BUILD
+/* Renode has no FPGA model, so fpga_init() never runs there and the buffers
+ * stay invalid. This writes a synthetic two-channel record instead, so the
+ * emulator renders through the same live compositor as the instrument
+ * (EXP-85): CH1 a sine, CH2 a square, both drifting one sample per call the
+ * way an untriggered capture does. It touches no peripheral. */
+void fpga_emu_feed(void)
+{
+    static uint16_t phase;
+    for (uint16_t i = 0; i < FPGA_ADC_BUF_SIZE; i++) {
+        const uint16_t t = (uint16_t)(i + phase);
+        fpga.ch1_buf[i] = (uint8_t)(128.0f + 70.0f * sinf((float)(t % 128u) *
+                                                         (6.2831853f / 128.0f)));
+        fpga.ch2_buf[i] = ((t % 160u) < 80u) ? 190u : 66u;
+    }
+    phase = (uint16_t)(phase + 1u);
+    data_ready = true;
+    fpga.spi3_ok_count++;
+}
+#define FPGA_BUFS_VALID() true
+#else
+#define FPGA_BUFS_VALID() (fpga.initialized)
+#endif
+
 const volatile uint8_t *fpga_get_ch1_buf(void)
 {
-    return fpga.initialized ? fpga.ch1_buf : NULL;
+    return FPGA_BUFS_VALID() ? fpga.ch1_buf : NULL;
 }
 
 const volatile uint8_t *fpga_get_ch2_buf(void)
 {
-    return fpga.initialized ? fpga.ch2_buf : NULL;
+    return FPGA_BUFS_VALID() ? fpga.ch2_buf : NULL;
 }
 
 void fpga_set_active(bool active)
