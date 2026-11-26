@@ -39,7 +39,7 @@ void scope_vmap_autofit(scope_vmap_t *m, uint8_t mn, uint8_t mx,
 }
 
 void scope_vmap_fixed(scope_vmap_t *m, int16_t y_top, int16_t y_bot,
-                      int16_t y_mid, uint8_t center, int full_h)
+                      int16_t y_mid, int16_t center, int full_h)
 {
     memset(m, 0, sizeof *m);
     m->on     = true;

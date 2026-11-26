@@ -94,6 +94,16 @@ at the new setting (EXP-88).
 The V/div and time/div labels come from the measured tables (`scope_cal.c`,
 `scope_timebase.c`); a step without a measurement shows `--`.
 
+**Vertical scale.** By default every trace is drawn at the V/div its label
+shows: one grid division is that many volts, and 0 V sits on the middle of
+the channel's half of the screen (the middle of the screen when only one
+channel is on), at its flag. A grounded probe draws as a flat line (the
+converter's 1-count noise is under one row). Settings > Oscilloscope >
+Vertical Scale switches to **Autofit**, which stretches each trace to fill
+its half whatever its size; the grid then means position only, and the
+converter's noise shows as a comb on a quiet input (up to 4x magnified). A
+range without a measured V/div (ranges 0 and 1) always autofits. Saved.
+
 Until 2026-11-26 the stages split the axes: "Trig level" left LEFT/RIGHT on
 the timebase, "Position" left UP/DOWN on V/div, there was no vertical
 position, and cursors took all four arrows whenever they were on.
@@ -315,12 +325,17 @@ initialization. Selecting `Scope` keeps the normal oscilloscope startup path.
   CH2 20M Limit     [ON / OFF]
   Trigger Mode      [Auto / Normal / Single]
   Trigger Edge      [Rising / Falling]
+  Vertical Scale    [V/div / Autofit]
   Debug Info        [Off / On]
 ```
 
 Press **OK** on any item to cycle its value. **MENU** to go back. The list
 scrolls: seven rows fit, so Trigger Edge and Debug Info come into view as the
 selection moves down (before 2026-11-26 Trigger Edge was never drawn).
+
+- **Vertical Scale** (default V/div, saved): V/div draws each trace at its
+  labelled volts per division with 0 V at its flag; Autofit fits each trace
+  to its half (see "Vertical scale" above).
 
 - **Debug Info** (default Off, saved): shows developer readouts on the scope
   screen. Today that is the `SPI3:OK n` chip in the top row: n counts the

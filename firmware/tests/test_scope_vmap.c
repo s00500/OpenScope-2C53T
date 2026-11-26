@@ -244,8 +244,36 @@ static void test_clip_lets_a_moved_trace_cross_the_band(void)
     CHECK(wide.c_top == TOP && wide.c_bot == MID - 1, "accepted an empty clip");
 }
 
+/* The default view since 2026-11-26: true scale with 0 V (here a zero of 48
+ * counts, my unit's CH1 on range 5) on the middle of the channel's half. A
+ * grounded probe's noise (47..50 counts, EXP-89) must draw within 3 rows, as
+ * the V/div label implies; autofit stretched the same record over 7+ rows
+ * (the comb the user saw), the control. One division is 32 counts = 26 rows. */
+static void test_true_scale_draws_ground_noise_flat(void)
+{
+    const int16_t mid = (TOP + MID - 1) / 2;
+    scope_vmap_t f, a;
+    scope_vmap_fixed(&f, TOP, MID - 1, mid, 48, FULL_H);
+    CHECK(scope_vmap_y(&f, 48) == mid, "0 V on row %d, want %d", scope_vmap_y(&f, 48), mid);
+    /* 32 counts = 25.75 rows (206 per 256); the grid's 26 rows are 32.3
+     * counts (scope_cal.h, SCOPE_CAL_COUNTS_PER_DIV): within a row. */
+    CHECK(abs((mid - scope_vmap_y(&f, 48 + 32)) - 26) <= 1, "one division up: row %d, want ~%d",
+          scope_vmap_y(&f, 80), mid - 26);
+    const int spread_f = scope_vmap_y(&f, 47) - scope_vmap_y(&f, 50);
+    CHECK(spread_f <= 3, "true scale: 47..50 counts over %d rows", spread_f);
+
+    scope_vmap_autofit(&a, 47, 50, TOP, MID - 1, FULL_H);
+    const int spread_a = scope_vmap_y(&a, 47) - scope_vmap_y(&a, 50);
+    CHECK(spread_a >= 7, "control: autofit drew 47..50 over only %d rows", spread_a);
+
+    /* A zero outside 0..255 (an offset pushed far) still maps, and clamps. */
+    scope_vmap_fixed(&f, TOP, MID - 1, mid, -300, FULL_H);
+    CHECK(scope_vmap_y(&f, 0) == TOP, "zero far below: code 0 on row %d", scope_vmap_y(&f, 0));
+}
+
 int main(void)
 {
+    test_true_scale_draws_ground_noise_flat();
     test_clip_lets_a_moved_trace_cross_the_band();
     test_fractional_counts();
     test_reference_row();

@@ -85,7 +85,7 @@ void scope_state_init(scope_state_t *s)
 
     /* Graticule: autofit by default (see scope_state.h). True scale is opt-in
      * from the shell because it needs a centred baseline first. */
-    s->true_scale = false;
+    s->true_scale = true;      /* 2026-11-26: the V/div the label says */
     s->soft_trigger = true;
     s->debug_info = false;
     s->trig_x = 160;

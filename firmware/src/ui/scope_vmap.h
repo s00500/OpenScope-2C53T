@@ -43,7 +43,8 @@ typedef struct {
     int     h, span;       /* autofit: usable rows, counts they cover */
     int16_t mn;            /* autofit: the count drawn at the bottom (may be < 0) */
     int16_t y_mid;         /* fixed: the row `center` is drawn on */
-    uint8_t center;        /* fixed: ADC code at y_mid */
+    int16_t center;        /* fixed: ADC count at y_mid (a 0 V count may lie
+                              outside 0..255, so signed) */
     int     full_h;        /* rows per 256 counts at the calibrated scale */
     int16_t y_off;         /* vertical position: rows up (MOVE -> Position) */
 } scope_vmap_t;
@@ -54,7 +55,7 @@ void scope_vmap_autofit(scope_vmap_t *m, uint8_t mn, uint8_t mx,
 
 /* True scale: `center` on row y_mid, full_h rows per 256 counts. */
 void scope_vmap_fixed(scope_vmap_t *m, int16_t y_top, int16_t y_bot,
-                      int16_t y_mid, uint8_t center, int full_h);
+                      int16_t y_mid, int16_t center, int full_h);
 
 /* Vertical position: draw every value `rows` higher (negative = lower).
  * Applied after the fit, so it moves the trace without rescaling it, and
@@ -80,8 +81,8 @@ int16_t scope_vmap_y_counts(const scope_vmap_t *m, float v);
 
 /* The channel's reference row, where its marker on the left edge points:
  * autofit, the middle of the fitted window (the trace is centred on it);
- * fixed, the row of `center` (ADC code 128, 0 V once `fpga scope center` has
- * parked the baseline there). Moves with the vertical position, clamped into
+ * fixed, the row of `center` (the channel's 0 V count where it is known,
+ * EXP-89; code 128 otherwise). Moves with the vertical position, clamped into
  * the band like every other row. Not a measured 0 V: where the zero is
  * known, the marker uses scope_vmap_y_counts(zero) instead (scope_ui.c). */
 int16_t scope_vmap_ref_y(const scope_vmap_t *m);

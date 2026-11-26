@@ -1026,6 +1026,7 @@ static void test_a_pre_debug_v3_record_still_loads(void)
     memset(&n, 0xA5, sizeof n);
     CHECK(config_deserialize(&n, (const uint8_t *)&o, sizeof o), "old v3 record rejected");
     CHECK(n.ui_debug == 0u, "old record must read Debug Info off (got %u)", n.ui_debug);
+    CHECK(n.scope_autofit == 0u, "old record must read true scale (got %u)", n.scope_autofit);
     CHECK(n.scope_trigger_level == -90 && n.scope_trigger_edge == 1 && n.scope_trigger_mode == 1,
           "trigger fields moved (%d %u %u)", n.scope_trigger_level, n.scope_trigger_edge,
           n.scope_trigger_mode);
@@ -1033,6 +1034,28 @@ static void test_a_pre_debug_v3_record_still_loads(void)
           "scope fields moved");
     CHECK(n.siggen_frequency == 1000.0f && n.theme == 2 && n.scope_trigger_source == 1 &&
           n.meter_layout == 2, "later fields moved");
+}
+
+static void test_vertical_scale_survives_a_power_cycle(void)
+{
+    fresh_device();
+    power_cycle();
+    settings_store_init();
+    CHECK(scope_state_get()->true_scale, "the default must be true scale");
+
+    scope_state_get()->true_scale = false;          /* the user picks Autofit */
+    settings_store_note_change(1000);
+    CHECK(settings_store_service(4000), "the change was not written");
+    power_cycle();
+    settings_store_init();
+    CHECK(!scope_state_get()->true_scale, "Autofit not restored");
+
+    scope_state_get()->true_scale = true;
+    settings_store_note_change(5000);
+    CHECK(settings_store_service(9000), "back to V/div was not written");
+    power_cycle();
+    settings_store_init();
+    CHECK(scope_state_get()->true_scale, "V/div not restored");
 }
 
 static void test_debug_info_survives_a_power_cycle(void)
@@ -2307,6 +2330,7 @@ int main(void)
         run("live settings survive a power cycle", test_live_settings_survive_a_power_cycle);
         run("a pre-Debug-Info v3 record still loads", test_a_pre_debug_v3_record_still_loads);
         run("Debug Info survives a power cycle", test_debug_info_survives_a_power_cycle);
+        run("Vertical Scale survives a power cycle", test_vertical_scale_survives_a_power_cycle);
         run("presses that change nothing never write", test_presses_that_change_nothing_never_write);
         run("a change undone before settling costs nothing",
             test_a_change_undone_before_settling_costs_nothing);

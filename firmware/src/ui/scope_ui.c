@@ -900,11 +900,20 @@ static void chan_map_prep(autofit_t *a, const volatile uint8_t *buf, bool split,
 {
     const int16_t top = (split && band) ? (int16_t)(TRACE_MID_Y + 1) : (int16_t)SCOPE_TOP;
     const int16_t bot = (split && !band) ? (int16_t)(TRACE_MID_Y - 1) : (int16_t)TRACE_BOT;
-    if (fixed)
+    if (fixed) {
+        /* True scale, 0 V on the middle of the channel's half (the middle of
+         * the screen when it is alone), where its "1"/"2" flag then sits;
+         * Position moves it from there (2026-11-26, the default view since).
+         * Without a calibrated zero (offset never armed: the emulator) code
+         * 128 takes the middle, as before. */
+        float z;
+        int16_t c = 128;
+        if (scope_chan_zero_counts(band ? 2u : 1u, &z))
+            c = (int16_t)(z < 0.0f ? z - 0.5f : z + 0.5f);
         scope_vmap_fixed(a, top, bot,
                          split ? (int16_t)((top + bot) / 2) : (int16_t)SCOPE_MID_Y,
-                         128u, SCOPE_H);
-    else
+                         c, SCOPE_H);
+    } else
         autofit_prep(a, buf, top, bot, mask_ch);
     /* Vertical position (MOVE -> Position, 2026-11-26): `band` is the
      * channel (0 = CH1, 1 = CH2) for every caller. Applied here, in the one

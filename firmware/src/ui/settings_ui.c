@@ -190,8 +190,12 @@ static void draw_settings_osc(void)
     draw_menu_item(7, scroll, settings_sub_selected,
                    "Trigger Edge", trigger_edge_labels[ss->trigger.edge], th);
 
-    /* Developer readouts (the SPI3 capture counter) on the scope screen. */
+    /* Drawn at the V/div the label says, or fitted to each trace. */
     draw_menu_item(8, scroll, settings_sub_selected,
+                   "Vertical Scale", ss->true_scale ? "V/div" : "Autofit", th);
+
+    /* Developer readouts (the SPI3 capture counter) on the scope screen. */
+    draw_menu_item(9, scroll, settings_sub_selected,
                    "Debug Info", ss->debug_info ? "On" : "Off", th);
 }
 

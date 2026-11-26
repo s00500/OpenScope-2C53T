@@ -93,6 +93,10 @@ typedef struct {
     bool     fft_max_hold;
     /* Signal Generator */
     uint8_t  siggen_waveform;
+    /* Vertical Scale: 0 = true scale (the default), 1 = autofit
+     * (2026-11-26). The byte that was padding before siggen_frequency, like
+     * ui_debug above: a v3 record reads 0, true scale. */
+    uint8_t  scope_autofit;
     float    siggen_frequency;
     float    siggen_amplitude;
     float    siggen_offset;

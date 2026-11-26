@@ -146,17 +146,20 @@ typedef struct {
     bool            running;        /* Acquisition running/stopped */
     cursor_state_t  cursor;         /* Cursor measurement state */
 
-    /* Vertical graticule mode. false (default) = AUTOFIT: each channel's trace
-     * is scaled from its own min/max to fill the band, so the grid is a
-     * position reference, not a volts reference. true = TRUE SCALE: the trace
-     * is drawn at a FIXED SCOPE_CAL_COUNTS_PER_DIV counts per division, so one
-     * grid division means exactly the volts/div the status bar prints — but
-     * only on ranges scope_cal calls usable; a NONE range always autofits.
+    /* Vertical graticule mode. true (default since 2026-11-26) = TRUE SCALE:
+     * the trace is drawn at a FIXED SCOPE_CAL_COUNTS_PER_DIV counts per
+     * division, so one grid division means exactly the volts/div the status
+     * bar prints, with the channel's 0 V (EXP-89) on the middle of its half
+     * and its flag; only on ranges scope_cal calls usable, a NONE range
+     * always autofits. false = AUTOFIT: each trace scaled from its own
+     * min/max to fill its half, so the grid is a position reference only.
      *
-     * Off by default because true scale needs the baseline centred (DAC1/PA4
-     * for CH1, TMR13/PA6 for CH2, via `fpga scope center`); uncentred, a
-     * DC-offset trace sits off-screen, which is honest but surprising. Toggle
-     * on the bench with `fpga scope graticule true`. */
+     * It was off by default while 0 V was unknown (a DC-offset trace sat
+     * off-screen). Autofit magnified a grounded probe's 1-count ADC noise to
+     * 3.3 rows per count, a comb at "2.52 V/div" where a count is 0.8 rows;
+     * the user asked for the scope behaviour. Settings > Oscilloscope >
+     * Vertical Scale, saved (config.h `scope_autofit`); `fpga scope
+     * graticule` and the remote `graticule` key set it too. */
     bool            true_scale;
 
     /* Software display trigger. true (default) = each frame's render window is

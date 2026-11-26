@@ -3257,9 +3257,9 @@ static void cmd_fpga_scope_timebase(const char *args)
 /* `fpga scope graticule [auto|true|toggle]` — the M3 seam. Choose whether the
  * live trace is drawn at TRUE volts/div (one grid division == the volts/div the
  * status bar prints, on calibrated ranges) or AUTOFIT (scaled to fill the band,
- * so the grid is a position reference only). Autofit at boot; this flips it on
- * the bench without a rebuild. True scale needs a centred baseline, so it also
- * prints which ranges will honour it and the reminder to center first. */
+ * so the grid is a position reference only). True scale at boot since
+ * 2026-11-26 (0 V from the EXP-89 zero, no centring needed); this flips it
+ * without the menu. It also prints which ranges will honour it. */
 static void cmd_fpga_scope_graticule(const char *args)
 {
     while (*args == ' ') args++;
@@ -3288,7 +3288,7 @@ static void cmd_fpga_scope_graticule(const char *args)
                          (unsigned)ss->ch2.vdiv_idx, l2,
                          scope_cal_true_scale_ok(2u, ss->ch2.vdiv_idx)
                              ? "" : "(no cal -> autofit)");
-        usb_send_str("  center the baseline first: `fpga scope center`\r\n");
+        usb_send_str("  0 V on the middle of each channel's half (EXP-89 zero)\r\n");
     }
 }
 
