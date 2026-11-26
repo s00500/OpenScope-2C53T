@@ -1,0 +1,62 @@
+[
+ {
+  "code": 14,
+  "gen_hz": 406.987,
+  "device": "timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E)\n   0  ANSWER       403.902 Hz  bin    8.28  sharp 0.99  win 1024\n   1  ANSWER       403.902 Hz  bin    8.28  sharp 0.99  win 1024\n   2  ANSWER       403.902 Hz  bin    8.28  sharp 0.99  win 1024\n   3  ANSWER       403.925 Hz  bin    8.28  sharp 0.99  win 1024\n   4  ANSWER       403.925 Hz  bin    8.28  sharp 0.99  win 1024\n   5  ANSWER       403.925 Hz  bin    8.28  sharp 0.99  win 1024\n   6  ANSWER       403.929 Hz  bin    8.28  sharp 0.99  win 1024\n   7  ANSWER       403.929 Hz  bin    8.28  sharp 0.99  win 1024\n   8  ANSWER       403.929 Hz  bin    8.28  sharp 0.99  win 1024\n   9  ANSWER       403.929 Hz  bin    8.28  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 14,
+  "gen_hz": 1323.043,
+  "device": "timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E)\n   0  ANSWER      1320.108 Hz  bin   27.07  sharp 0.99  win 1024\n   1  ANSWER      1320.108 Hz  bin   27.07  sharp 0.99  win 1024\n   2  ANSWER      1320.130 Hz  bin   27.07  sharp 0.99  win 1024\n   3  ANSWER      1320.130 Hz  bin   27.07  sharp 0.99  win 1024\n   4  ANSWER      1320.130 Hz  bin   27.07  sharp 0.99  win 1024\n   5  ANSWER      1320.130 Hz  bin   27.07  sharp 0.99  win 1024\n   6  ANSWER      1320.091 Hz  bin   27.07  sharp 0.99  win 1024\n   7  ANSWER      1320.091 Hz  bin   27.07  sharp 0.99  win 1024\n   8  ANSWER      1320.091 Hz  bin   27.07  sharp 0.99  win 1024\n   9  ANSWER      1320.086 Hz  bin   27.07  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 14,
+  "gen_hz": 3409.091,
+  "device": "timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E)\n   0  ANSWER      3406.464 Hz  bin   69.86  sharp 0.99  win 1024\n   1  ANSWER      3406.464 Hz  bin   69.86  sharp 0.99  win 1024\n   2  ANSWER      3406.464 Hz  bin   69.86  sharp 0.99  win 1024\n   3  ANSWER      3406.453 Hz  bin   69.86  sharp 0.99  win 1024\n   4  ANSWER      3406.453 Hz  bin   69.86  sharp 0.99  win 1024\n   5  ANSWER      3406.453 Hz  bin   69.86  sharp 0.99  win 1024\n   6  ANSWER      3406.453 Hz  bin   69.86  sharp 0.99  win 1024\n   7  ANSWER      3406.448 Hz  bin   69.86  sharp 0.99  win 1024\n   8  ANSWER      3406.448 Hz  bin   69.86  sharp 0.99  win 1024\n   9  ANSWER      3406.448 Hz  bin   69.86  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 14,
+  "gen_hz": 7692.308,
+  "device": "timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E)\n   0  ANSWER      7683.212 Hz  bin  157.57  sharp 0.98  win 1024\n   1  ANSWER      7683.182 Hz  bin  157.57  sharp 0.98  win 1024\n   2  ANSWER      7683.182 Hz  bin  157.57  sharp 0.98  win 1024\n   3  ANSWER      7683.182 Hz  bin  157.57  sharp 0.98  win 1024\n   4  ANSWER      7683.182 Hz  bin  157.57  sharp 0.98  win 1024\n   5  ANSWER      7683.224 Hz  bin  157.57  sharp 0.98  win 1024\n   6  ANSWER      7683.224 Hz  bin  157.57  sharp 0.98  win 1024\n   7  ANSWER      7683.224 Hz  bin  157.57  sharp 0.98  win 1024\n   8  ANSWER      7683.224 Hz  bin  157.57  sharp 0.98  win 1024\n   9  ANSWER      7683.189 Hz  bin  157.57  sharp 0.98  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 15,
+  "gen_hz": 203.995,
+  "device": "timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F)\n   0  ANSWER       202.600 Hz  bin    8.30  sharp 0.99  win 1024\n   1  ANSWER       202.600 Hz  bin    8.30  sharp 0.99  win 1024\n   2  ANSWER       202.600 Hz  bin    8.30  sharp 0.99  win 1024\n   3  ANSWER       202.600 Hz  bin    8.30  sharp 0.99  win 1024\n   4  ANSWER       202.599 Hz  bin    8.30  sharp 0.99  win 1024\n   5  ANSWER       202.599 Hz  bin    8.30  sharp 0.99  win 1024\n   6  ANSWER       202.599 Hz  bin    8.30  sharp 0.99  win 1024\n   7  ANSWER       202.599 Hz  bin    8.30  sharp 0.99  win 1024\n   8  ANSWER       202.613 Hz  bin    8.30  sharp 0.99  win 1024\n   9  ANSWER       202.613 Hz  bin    8.30  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 15,
+  "gen_hz": 660.975,
+  "device": "timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F)\n   0  ANSWER       660.009 Hz  bin   27.05  sharp 0.99  win 1024\n   1  ANSWER       660.009 Hz  bin   27.05  sharp 0.99  win 1024\n   2  ANSWER       660.009 Hz  bin   27.05  sharp 0.99  win 1024\n   3  ANSWER       660.009 Hz  bin   27.05  sharp 0.99  win 1024\n   4  ANSWER       660.004 Hz  bin   27.05  sharp 0.99  win 1024\n   5  ANSWER       660.004 Hz  bin   27.05  sharp 0.99  win 1024\n   6  ANSWER       660.004 Hz  bin   27.05  sharp 0.99  win 1024\n   7  ANSWER       660.004 Hz  bin   27.05  sharp 0.99  win 1024\n   8  ANSWER       660.012 Hz  bin   27.05  sharp 0.99  win 1024\n   9  ANSWER       660.012 Hz  bin   27.05  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 15,
+  "gen_hz": 1704.545,
+  "device": "timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F)\n   0  ANSWER      1704.196 Hz  bin   69.86  sharp 0.99  win 1024\n   1  ANSWER      1704.196 Hz  bin   69.86  sharp 0.99  win 1024\n   2  ANSWER      1704.196 Hz  bin   69.86  sharp 0.99  win 1024\n   3  ANSWER      1704.177 Hz  bin   69.86  sharp 0.99  win 1024\n   4  ANSWER      1704.177 Hz  bin   69.86  sharp 0.99  win 1024\n   5  ANSWER      1704.177 Hz  bin   69.86  sharp 0.99  win 1024\n   6  ANSWER      1704.177 Hz  bin   69.86  sharp 0.99  win 1024\n   7  ANSWER      1704.198 Hz  bin   69.86  sharp 0.99  win 1024\n   8  ANSWER      1704.198 Hz  bin   69.86  sharp 0.99  win 1024\n   9  ANSWER      1704.198 Hz  bin   69.86  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 15,
+  "gen_hz": 3846.154,
+  "device": "timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F)\n   0  ANSWER      3843.776 Hz  bin  157.57  sharp 0.98  win 1024\n   1  ANSWER      3843.776 Hz  bin  157.57  sharp 0.98  win 1024\n   2  ANSWER      3843.776 Hz  bin  157.57  sharp 0.98  win 1024\n   3  ANSWER      3843.776 Hz  bin  157.57  sharp 0.98  win 1024\n   4  ANSWER      3843.768 Hz  bin  157.57  sharp 0.98  win 1024\n   5  ANSWER      3843.768 Hz  bin  157.57  sharp 0.98  win 1024\n   6  ANSWER      3843.768 Hz  bin  157.57  sharp 0.98  win 1024\n   7  ANSWER      3843.768 Hz  bin  157.57  sharp 0.98  win 1024\n   8  ANSWER      3843.722 Hz  bin  157.57  sharp 0.98  win 1024\n   9  ANSWER      3843.722 Hz  bin  157.57  sharp 0.98  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 16,
+  "gen_hz": 102.002,
+  "device": "timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10)\n   0  ANSWER       101.315 Hz  bin    8.30  sharp 0.99  win 1024\n   1  ANSWER       101.315 Hz  bin    8.30  sharp 0.99  win 1024\n   2  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\n   3  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\n   4  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\n   5  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\n   6  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\n   7  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\n   8  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\n   9  ANSWER       101.310 Hz  bin    8.30  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 16,
+  "gen_hz": 330.989,
+  "device": "timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10)\n   0  ANSWER       330.404 Hz  bin   27.08  sharp 0.99  win 1024\n   1  ANSWER       330.400 Hz  bin   27.08  sharp 0.99  win 1024\n   2  ANSWER       330.400 Hz  bin   27.08  sharp 0.99  win 1024\n   3  ANSWER       330.400 Hz  bin   27.08  sharp 0.99  win 1024\n   4  ANSWER       330.400 Hz  bin   27.08  sharp 0.99  win 1024\n   5  ANSWER       330.406 Hz  bin   27.08  sharp 0.99  win 1024\n   6  ANSWER       330.406 Hz  bin   27.08  sharp 0.99  win 1024\n   7  ANSWER       330.406 Hz  bin   27.08  sharp 0.99  win 1024\n   8  ANSWER       330.406 Hz  bin   27.08  sharp 0.99  win 1024\n   9  ANSWER       330.406 Hz  bin   27.08  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 16,
+  "gen_hz": 851.97,
+  "device": "timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10)\n   0  ANSWER       851.868 Hz  bin   69.84  sharp 0.99  win 1024\n   1  ANSWER       851.868 Hz  bin   69.84  sharp 0.99  win 1024\n   2  ANSWER       851.868 Hz  bin   69.84  sharp 0.99  win 1024\n   3  ANSWER       851.868 Hz  bin   69.84  sharp 0.99  win 1024\n   4  ANSWER       851.867 Hz  bin   69.84  sharp 0.99  win 1024\n   5  ANSWER       851.867 Hz  bin   69.84  sharp 0.99  win 1024\n   6  ANSWER       851.867 Hz  bin   69.84  sharp 0.99  win 1024\n   7  ANSWER       851.867 Hz  bin   69.84  sharp 0.99  win 1024\n   8  ANSWER       851.867 Hz  bin   69.84  sharp 0.99  win 1024\n   9  ANSWER       851.871 Hz  bin   69.84  sharp 0.99  win 1024\nanswered 10/10\n"
+ },
+ {
+  "code": 16,
+  "gen_hz": 1924.619,
+  "device": "timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10)\n   0  ANSWER      1923.813 Hz  bin  157.72  sharp 0.99  win 1024\n   1  ANSWER      1923.813 Hz  bin  157.72  sharp 0.99  win 1024\n   2  ANSWER      1923.813 Hz  bin  157.72  sharp 0.99  win 1024\n   3  ANSWER      1923.813 Hz  bin  157.72  sharp 0.99  win 1024\n   4  ANSWER      1923.841 Hz  bin  157.72  sharp 0.99  win 1024\n   5  ANSWER      1923.841 Hz  bin  157.72  sharp 0.99  win 1024\n   6  ANSWER      1923.841 Hz  bin  157.72  sharp 0.99  win 1024\n   7  ANSWER      1923.841 Hz  bin  157.72  sharp 0.99  win 1024\n   8  ANSWER      1923.841 Hz  bin  157.72  sharp 0.99  win 1024\n   9  ANSWER      1923.807 Hz  bin  157.72  sharp 0.99  win 1024\nanswered 10/10\n"
+ }
+]

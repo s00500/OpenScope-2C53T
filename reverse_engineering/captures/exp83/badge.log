@@ -1,0 +1,12 @@
+0x0E gen 406.987 Hz  device: timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E) |    0  ANSWER       403.902 Hz  bin    8.28  sharp 0.99  win 1024
+0x0E gen 1323.043 Hz  device: timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E) |    0  ANSWER      1320.108 Hz  bin   27.07  sharp 0.99  win 1024
+0x0E gen 3409.091 Hz  device: timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E) |    0  ANSWER      3406.464 Hz  bin   69.86  sharp 0.99  win 1024
+0x0E gen 7692.308 Hz  device: timebase 0x0E -> 49930 S/s  (reg 0x01 in force: 0x0E) |    0  ANSWER      7683.212 Hz  bin  157.57  sharp 0.98  win 1024
+0x0F gen 203.995 Hz  device: timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F) |    0  ANSWER       202.600 Hz  bin    8.30  sharp 0.99  win 1024
+0x0F gen 660.975 Hz  device: timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F) |    0  ANSWER       660.009 Hz  bin   27.05  sharp 0.99  win 1024
+0x0F gen 1704.545 Hz  device: timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F) |    0  ANSWER      1704.196 Hz  bin   69.86  sharp 0.99  win 1024
+0x0F gen 3846.154 Hz  device: timebase 0x0F -> 24979 S/s  (reg 0x01 in force: 0x0F) |    0  ANSWER      3843.776 Hz  bin  157.57  sharp 0.98  win 1024
+0x10 gen 102.002 Hz  device: timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10) |    0  ANSWER       101.315 Hz  bin    8.30  sharp 0.99  win 1024
+0x10 gen 330.989 Hz  device: timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10) |    0  ANSWER       330.404 Hz  bin   27.08  sharp 0.99  win 1024
+0x10 gen 851.970 Hz  device: timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10) |    0  ANSWER       851.868 Hz  bin   69.84  sharp 0.99  win 1024
+0x10 gen 1924.619 Hz  device: timebase 0x10 -> 12490 S/s  (reg 0x01 in force: 0x10) |    0  ANSWER      1923.813 Hz  bin  157.72  sharp 0.99  win 1024

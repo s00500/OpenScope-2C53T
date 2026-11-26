@@ -1,0 +1,56 @@
+[
+ {
+  "range": 4,
+  "n": 2,
+  "mv_per_count": 7.847951443810922,
+  "intercept_counts": -0.3549107142858019,
+  "max_resid_counts": 5.684341886080802e-14,
+  "table_mv": 12.9536,
+  "ratio": 0.6058509946123798
+ },
+ {
+  "range": 5,
+  "n": 6,
+  "mv_per_count": 20.009644760055124,
+  "intercept_counts": -0.13692869235646726,
+  "max_resid_counts": 0.3079529369775287,
+  "table_mv": 20.0836,
+  "ratio": 0.9963176303080684
+ },
+ {
+  "range": 6,
+  "n": 6,
+  "mv_per_count": 39.78611677912957,
+  "intercept_counts": -0.016864935383983617,
+  "max_resid_counts": 0.19767709995810634,
+  "table_mv": 39.514,
+  "ratio": 1.0068865915657632
+ },
+ {
+  "range": 7,
+  "n": 6,
+  "mv_per_count": 78.89545583615632,
+  "intercept_counts": -0.05809226771512106,
+  "max_resid_counts": 0.39567975853039883,
+  "table_mv": 81.3464,
+  "ratio": 0.9698702811206926
+ },
+ {
+  "range": 8,
+  "n": 6,
+  "mv_per_count": 194.86785728773467,
+  "intercept_counts": -0.2661299543070014,
+  "max_resid_counts": 0.27076964506906975,
+  "table_mv": 256.726,
+  "ratio": 0.7590499493145793
+ },
+ {
+  "range": 9,
+  "n": 6,
+  "mv_per_count": 404.2147124586248,
+  "intercept_counts": -0.06100469443909355,
+  "max_resid_counts": 0.22415511098604712,
+  "table_mv": 323.99640000000005,
+  "ratio": 1.2475901351330592
+ }
+]
