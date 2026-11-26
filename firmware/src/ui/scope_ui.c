@@ -1016,8 +1016,8 @@ bool scope_chan_zero_counts(uint8_t ch, float *out)
 /* The hardware trigger level as volts at the source channel's probe tip:
  * the record code that fires (reg 0x08 - 28, EXP-55/56) less that
  * channel's 0 V, times its volts per count (EXP-89). The 28 was measured on
- * CH1 (ranges 5 and 7 on unit #1; range 5 on my unit, EXP-89: the trigger
- * sample within 2 counts of the printed level); on CH2 it is assumed. */
+ * CH1 (ranges 5 and 7 on unit #1) and on both channels of my unit (range 5,
+ * EXP-89: the trigger sample within 3 counts of the printed level). */
 bool scope_trigger_level_volts(float *out)
 {
     const scope_state_t *ss = scope_state_get();

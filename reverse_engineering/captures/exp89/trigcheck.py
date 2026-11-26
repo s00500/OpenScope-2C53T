@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.11
 """EXP-89: does the trigger fire at the volts the firmware prints?
 
-GEN sine into CH1, DC, range 5, timebase 0x12 (2.5 kS/s, ~2 cycles per
+GEN sine into the channel (argv: ch1 | ch2, default ch1), DC, range 5, timebase 0x12 (2.5 kS/s, ~2 cycles per
 record). One AUTO record gives the span; levels at 30/50/70 % of it; per
 level NORMAL, 6 records. Time-ordered records put the trigger at index 512,
 so r[512] must equal (reg 0x08 code - 28) (EXP-55/56: +-3 counts at 2 Hz;
@@ -16,21 +16,23 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "exp84"))
 import loop
 
+CH = sys.argv[1] if len(sys.argv) > 1 else "ch1"
+N = 1 if CH == "ch1" else 2
 before = loop.dev_get_json()
-keep = ["timebase", "trig.mode", "trig.level", "trig.source", "trig.edge", "ch1.coupling", "ch1.vdiv"]
+keep = ["timebase", "trig.mode", "trig.level", "trig.source", "trig.edge", "ch%d.coupling" % N, "ch%d.vdiv" % N]
 print("found:", {k: before[k] for k in keep})
-GAIN, F = 20.01, 5
-out = {"levels": []}
+GAIN, F = (20.01 if N == 1 else 19.86), 5
+out = {"ch": N, "levels": []}
 try:
-    loop.dev_set("ch1.coupling", "dc")
-    loop.dev_set("ch1.vdiv", "5")
-    loop.dev_set("trig.source", "ch1")
+    loop.dev_set("ch%d.coupling" % N, "dc")
+    loop.dev_set("ch%d.vdiv" % N, "5")
+    loop.dev_set("trig.source", CH)
     loop.dev_set("trig.edge", "rising")
     loop.dev_set("timebase", "0x12")
     fa = loop.gen("sine", F, 2.5)
     loop.dev_set("trig.mode", "auto")
     time.sleep(2.0)
-    caps = [x for k, x, m in loop.capture(2, "1") if k[1] == "CH1"]
+    caps = [x for k, x, m in loop.capture(2, str(N)) if k[1] == "CH%d" % N]
     lo, hi = min(float(np.percentile(x, 2)) for x in caps), max(float(np.percentile(x, 98)) for x in caps)
     print("GEN %.3f Hz; span %.1f..%.1f counts" % (fa or 0, lo, hi))
     out.update(gen_hz=fa, lo=lo, hi=hi)
@@ -40,12 +42,13 @@ try:
         loop.dev_set("--", "trig.level", str(lvl))
         code = int(loop.dev_get_json()["trig.code"])
         z = loop.shell("fpga scope zero")
-        mz = re.search(r"CH1 range 5\s+DAC1 (\d+)\s+zero (-?[\d.]+)", z)
+        mz = re.search(r"CH%d range 5\s+(?:DAC1|TMR13) (\d+)\s+zero (-?[\d.]+)" % N, z)
+        assert re.search(r"trigger CH%d " % N, z), z
         mv = re.search(r"mv (-?\d+)", z)
         zero, fw_mv = float(mz.group(2)), int(mv.group(1))
         loop.dev_set("trig.mode", "normal")
         time.sleep(2.0)
-        recs = [(m, x) for k, x, m in loop.capture(6, "1") if k[1] == "CH1"]
+        recs = [(m, x) for k, x, m in loop.capture(6, str(N)) if k[1] == "CH%d" % N]
         r512 = [int(x[512]) for m, x in recs]
         ordered = [m["ordered"] for m, x in recs]
         # local slope at 512, for the tolerance: counts per sample
@@ -72,4 +75,4 @@ finally:
     loop.sh(loop.OS, "action", "save")
     after = loop.dev_get_json()
     print("restored:", {k: after[k] for k in keep}, "sg.output", after["sg.output"])
-    json.dump(out, open(os.path.join(HERE, "trigcheck-%s.json" % time.strftime("%H%M%S")), "w"), indent=1)
+    json.dump(out, open(os.path.join(HERE, "trigcheck-%s-%s.json" % (CH, time.strftime("%H%M%S"))), "w"), indent=1)
