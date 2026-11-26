@@ -59,9 +59,14 @@ Scale. Clearing the mask does the same for Mask.
 
 Position and the trigger point move half a grid division per press (13 rows,
 16 columns); the popup shows the offset in divisions. The vertical position
-is a display offset, applied to the trace, the trigger level line and the mask
-bounds together; a trace moved past the edge of its band flattens there, and
-it is not saved across power cycles. No arrow press blanks the screen; after a
+is a display offset, applied to the trace, the trigger level line, the mask
+bounds and the channel's "1"/"2" flag together, up to 5 divisions either way.
+With both channels on, each starts in its own half of the screen, but a moved
+channel can cross into the other half and overlay the other trace, as on a
+bench scope; only the readout rows at the bottom and the top of the screen
+stop it (a trace moved past them flattens there). The position is not saved
+across power cycles. The H cursors' dV is read on the active channel's scale
+(the one CH1/CH2 selected), wherever its trace sits. No arrow press blanks the screen; after a
 Scale change the measurements below the trace refresh from the first capture
 at the new setting (EXP-88).
 

@@ -912,6 +912,13 @@ static void chan_map_prep(autofit_t *a, const volatile uint8_t *buf, bool split,
      * in both renderers. */
     const scope_state_t *ss = scope_state_get();
     scope_vmap_offset(a, band ? ss->ch2.position : ss->ch1.position);
+    /* The half a channel gets with both on is where it STARTS and what sets
+     * its scale, not a wall (2026-11-26): moved by Position it may cross the
+     * other channel's half, overlaying it as on a bench scope, down to the
+     * readout rows (TRACE_BOT, EXP-77). Unmoved, an autofit trace stays in
+     * its half by construction; a true-scale one larger than its half now
+     * overlaps instead of flattening on the middle line. */
+    scope_vmap_clip(a, (int16_t)SCOPE_TOP, (int16_t)TRACE_BOT);
     /* The marker points at the channel's 0 V where it is known (EXP-89):
      * the calibrated zero through this same map, so it sits on a grounded
      * trace and clamps to the band edge when 0 V is outside the window.
@@ -1588,13 +1595,24 @@ static uint8_t cursor_readout(const scope_state_t *ss, char lines[2][CHIP_TEXT])
         const int32_t dy = (int32_t)c->h1_y - (int32_t)c->h2_y;
 
         /*
-         * Only a band that contains BOTH cursors can convert this. In split
-         * (two-channel) mode each band has its own autofit scale, so a delta
-         * spanning the two is not a voltage in either channel; it falls back
-         * to pixels rather than picking one scale and hoping.
+         * Whose scale: the ACTIVE channel's (CH1/CH2 keys), as a bench
+         * scope measures the selected source (2026-11-26). Since a channel
+         * moved by Position may cross into the other's half, the half the
+         * cursors sit in no longer says whose trace they are on; a row
+         * difference is a voltage on either channel's scale anywhere on the
+         * screen. With the active channel off: a band that contains BOTH
+         * cursors (the rule before), else pixels.
          */
         scope_cursor_vmap_t vm = { 0.0f, 0u, 0u };
         for (uint8_t i = 0u; i < 2u; i++) {
+            const vband_t *b = &g_vband[i];
+            if (b->on && b->channel == (uint8_t)(active_channel + 1)) {
+                vm.counts_per_pixel = b->counts_per_pixel;
+                vm.channel          = b->channel;
+                vm.range_idx        = b->range_idx;
+            }
+        }
+        for (uint8_t i = 0u; i < 2u && vm.channel == 0u; i++) {
             const vband_t *b = &g_vband[i];
             if (!b->on) continue;
             if ((int16_t)c->h1_y < b->y_top || (int16_t)c->h1_y > b->y_bot) continue;

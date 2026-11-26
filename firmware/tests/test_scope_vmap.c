@@ -195,8 +195,58 @@ static void test_fractional_counts(void)
           scope_vmap_y_counts(&ms[1], 46.5f));
 }
 
+/* Overlay (2026-11-26): with both channels on, CH1's band is the top half.
+ * Moved down by Position with the clip widened to the whole trace area, its
+ * rows go past the band into the bottom half and stop only at the area's
+ * edge; without the clip (the control) they flatten on the band edge. The
+ * scale and the unmoved rows are the band's either way. */
+static void test_clip_lets_a_moved_trace_cross_the_band(void)
+{
+    scope_vmap_t band, wide;
+    scope_vmap_autofit(&band, 60, 120, TOP, MID - 1, FULL_H);
+    scope_vmap_autofit(&wide, 60, 120, TOP, MID - 1, FULL_H);
+    scope_vmap_clip(&wide, TOP, TRACE_BOT);
+
+    /* Unmoved: identical rows, all inside the band. */
+    for (int v = 60; v <= 120; v += 5)
+        CHECK(scope_vmap_y(&wide, (uint8_t)v) == scope_vmap_y(&band, (uint8_t)v) &&
+              scope_vmap_y(&wide, (uint8_t)v) < MID - 1,
+              "unmoved value %d: %d vs %d", v, scope_vmap_y(&wide, (uint8_t)v),
+              scope_vmap_y(&band, (uint8_t)v));
+    CHECK(scope_vmap_counts_per_pixel(&wide) == scope_vmap_counts_per_pixel(&band),
+          "the clip changed the scale");
+
+    /* Five divisions down (130 rows). */
+    scope_vmap_offset(&band, -130);
+    scope_vmap_offset(&wide, -130);
+    int below = 0, flat = 0;
+    for (int v = 60; v <= 120; v += 5) {
+        const int yw = scope_vmap_y(&wide, (uint8_t)v), yb = scope_vmap_y(&band, (uint8_t)v);
+        if (yw >= MID + 1) below++;
+        if (yb == MID - 2) flat++;
+        CHECK(yw >= TOP && yw < TRACE_BOT, "value %d left the area: row %d", v, yw);
+    }
+    CHECK(below == 13, "only %d of 13 values crossed into the bottom half", below);
+    CHECK(flat == 13, "control: only %d of 13 values flattened on the band edge", flat);
+    /* The lowest value sits on the area's last row, not past it. */
+    CHECK(scope_vmap_y(&wide, 60) == TRACE_BOT - 1, "bottom: row %d", scope_vmap_y(&wide, 60));
+
+    /* The fractional lookup and the reference row use the same clip. */
+    CHECK(scope_vmap_y_counts(&wide, 90.0f) == scope_vmap_y(&wide, 90),
+          "fractional %d vs %d", scope_vmap_y_counts(&wide, 90.0f), scope_vmap_y(&wide, 90));
+    CHECK(scope_vmap_ref_y(&wide) > MID, "reference row %d stayed in the top half",
+          scope_vmap_ref_y(&wide));
+
+    /* A fresh fit resets the clip to the band; a nonsense clip is ignored. */
+    scope_vmap_autofit(&wide, 60, 120, TOP, MID - 1, FULL_H);
+    CHECK(wide.c_top == TOP && wide.c_bot == MID - 1, "fit kept a stale clip");
+    scope_vmap_clip(&wide, 150, 100);
+    CHECK(wide.c_top == TOP && wide.c_bot == MID - 1, "accepted an empty clip");
+}
+
 int main(void)
 {
+    test_clip_lets_a_moved_trace_cross_the_band();
     test_fractional_counts();
     test_reference_row();
     test_offset_moves_without_rescaling();

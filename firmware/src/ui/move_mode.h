@@ -40,7 +40,9 @@ typedef enum {
 #define MOVE_ROWS_PER_DIV 26
 #define MOVE_COLS_PER_DIV 32
 #define MOVE_VPOS_STEP   13     /* rows */
-#define MOVE_VPOS_MAX    78     /* rows either way: three divisions */
+#define MOVE_VPOS_MAX   130     /* rows either way: five divisions, from the
+                                   middle of either half of a split screen to
+                                   the far edge (was 78, three, 2026-11-26) */
 #define MOVE_HPOS_STEP   16     /* columns */
 #define MOVE_HPOS_MIN     8     /* trigger point column limits */
 #define MOVE_HPOS_MAX   312

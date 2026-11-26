@@ -30,6 +30,8 @@ void scope_vmap_autofit(scope_vmap_t *m, uint8_t mn, uint8_t mx,
     m->on     = true;
     m->y_top  = y_top;
     m->y_bot  = y_bot;
+    m->c_top  = y_top;
+    m->c_bot  = y_bot;
     m->h      = h;
     m->span   = span;
     m->mn     = (int16_t)lo;
@@ -44,6 +46,8 @@ void scope_vmap_fixed(scope_vmap_t *m, int16_t y_top, int16_t y_bot,
     m->fixed  = true;
     m->y_top  = y_top;
     m->y_bot  = y_bot;
+    m->c_top  = y_top;
+    m->c_bot  = y_bot;
     m->y_mid  = y_mid;
     m->center = center;
     m->full_h = full_h < 1 ? 1 : full_h;
@@ -54,6 +58,14 @@ void scope_vmap_offset(scope_vmap_t *m, int16_t rows)
     m->y_off = rows;
 }
 
+void scope_vmap_clip(scope_vmap_t *m, int16_t c_top, int16_t c_bot)
+{
+    if (c_bot <= c_top)
+        return;                 /* nonsense: keep the band */
+    m->c_top = c_top;
+    m->c_bot = c_bot;
+}
+
 int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v)
 {
     int yy;
@@ -62,8 +74,8 @@ int16_t scope_vmap_y(const scope_vmap_t *m, uint8_t v)
     else
         yy = (int)(m->y_bot - 2) - ((int)v - (int)m->mn) * m->h / m->span;
     yy -= m->y_off;
-    if (yy < m->y_top)  yy = m->y_top;
-    if (yy >= m->y_bot) yy = m->y_bot - 1;
+    if (yy < m->c_top)  yy = m->c_top;
+    if (yy >= m->c_bot) yy = m->c_bot - 1;
     return (int16_t)yy;
 }
 
@@ -85,8 +97,8 @@ int16_t scope_vmap_y_counts(const scope_vmap_t *m, float v)
     if (d >  4096.0f) d =  4096.0f;
     if (d < -4096.0f) d = -4096.0f;
     int yy = base - (int)d - m->y_off;
-    if (yy < m->y_top)  yy = m->y_top;
-    if (yy >= m->y_bot) yy = m->y_bot - 1;
+    if (yy < m->c_top)  yy = m->c_top;
+    if (yy >= m->c_bot) yy = m->c_bot - 1;
     return (int16_t)yy;
 }
 
@@ -94,8 +106,8 @@ int16_t scope_vmap_ref_y(const scope_vmap_t *m)
 {
     int yy = m->fixed ? (int)m->y_mid : (int)(m->y_bot - 2) - m->h / 2;
     yy -= m->y_off;
-    if (yy < m->y_top)  yy = m->y_top;
-    if (yy >= m->y_bot) yy = m->y_bot - 1;
+    if (yy < m->c_top)  yy = m->c_top;
+    if (yy >= m->c_bot) yy = m->c_bot - 1;
     return (int16_t)yy;
 }
 
