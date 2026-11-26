@@ -26,9 +26,14 @@ If you're inside a Settings sub-menu, **MENU** goes back to the top-level Settin
 
 | Button | Action |
 |--------|--------|
-| **CH1** | Select CH1 as active channel + cycle coupling (DC -> AC -> GND) |
-| **CH2** | Select CH2 as active channel + cycle coupling (DC -> AC -> GND) |
-| **SELECT** | Cycle probe setting (1X -> 10X) for active channel |
+| **CH1** / **CH2** | Not the active channel: select it (UP/DOWN etc. act on it). Active channel: switch it off. Off: switch it on and select it. The last channel on stays on. |
+| **SELECT** | Cursors: Off -> Vertical -> Horizontal -> Both -> Off (time view, see Cursors) |
+
+AC/DC coupling and probe 1X/10X are in Settings -> Oscilloscope (CHn Coupling,
+CHn Probe). Until 2026-11-26 CH1/CH2 cycled the coupling and SELECT the probe.
+Switching a channel off or on also changes the FPGA channel routing (PC1/PC2),
+and a trigger source on a channel that goes off moves to the other channel
+(EXP-86).
 
 ### Vertical / Horizontal
 
@@ -49,14 +54,26 @@ Timebase steps: 5ns, 10ns, 20ns, 50ns, 100ns, 200ns, 500ns, 1us, 2us, 5us, 10us,
 
 | Stage | UP/DOWN | LEFT/RIGHT | SELECT |
 |-------|---------|------------|--------|
-| V/div (default) | V/div of the active channel | Timebase | Probe 1X/10X |
-| Trig level | Trigger level (the dotted line) | Timebase | Probe 1X/10X |
-| Position | V/div | Trigger point across the screen | Probe 1X/10X |
+| V/div (default) | V/div of the active channel | Timebase | Cursors |
+| Trig level | Trigger level (the dotted line) | Timebase | Cursors |
+| Position | V/div | Trigger point across the screen | Cursors |
 | Mask (only while a mask exists) | Mask vertical tolerance ±2 counts | Mask horizontal tolerance ±1 sample | Stop-on-fail on/off |
 
-The trigger edge (Rising/Falling) is in Settings -> Oscilloscope Settings.
-(Until 2026-09-22 this table said MOVE cycled the edge; it has not done so
-since the trigger-level control landed.)
+**TRIGGER** (time view) opens the trigger panel, stock's "Trigger Settings":
+
+| Key while the panel is open | Action |
+|-----|--------|
+| **UP/DOWN** | Pick the row: Mode, Edge, Channel |
+| **LEFT/RIGHT**, **OK** | Change it: Mode Auto / Normal / Single, Edge Rising / Falling, Channel CH1 / CH2 |
+| **TRIGGER**, **MENU** | Close the panel |
+| any other key | Closes the panel and does nothing else |
+
+Channel is the trigger source, written to the FPGA (reg 0x06, EXP-86): the
+hardware fires on that channel. A channel that is off cannot be the source
+("CH2 is off"). The edge is an MCU filter on the source channel's record
+(the FPGA fires on either edge, EXP-55). The panel and its changes draw
+without blanking the screen. Mode and edge are also in Settings ->
+Oscilloscope. In the FFT views TRIGGER still cycles the mode.
 
 | Button | Action |
 |--------|--------|
@@ -80,7 +97,7 @@ failure is held. Full design: `docs/specs/scope/mask-pass-fail.md`.
 
 | Button | Action |
 |--------|--------|
-| **TRIGGER** | Cycle cursor mode: Off -> Vertical -> Horizontal -> Both -> Off (time view only) |
+| **SELECT** | Cycle cursor mode: Off -> Vertical -> Horizontal -> Both -> Off (time view only; was TRIGGER until 2026-11-26) |
 | **UP/DOWN** | Move the active cursor 4 px (UP = left / up) |
 | **LEFT/RIGHT** | Select the next cursor; both keys do the same: V1 -> V2 (vertical), H1 -> H2 (horizontal), V1 -> V2 -> H1 -> H2 (both) |
 
@@ -304,17 +321,17 @@ Shows device info, pool status, heap free, license. **MENU** or **OK** to go bac
 |  Key   |   Oscilloscope   |    Multimeter    |    Signal Gen    |     Settings     |
 +--------+------------------+------------------+------------------+------------------+
 | MENU   | -> Multimeter    | -> Signal Gen    | -> Settings      | Back / -> Scope  |
-| CH1    | Coupling DC/AC   |        -         |        -         |        -         |
-| CH2    | Coupling DC/AC   |        -         |        -         |        -         |
+| CH1    | Select / off / on|        -         |        -         |        -         |
+| CH2    | Select / off / on|        -         |        -         |        -         |
 | UP     | V/div up         |        -         | Amplitude up     | Selection up     |
 | DOWN   | V/div down       |        -         | Amplitude down   | Selection down   |
 | LEFT   | Timebase down    | Prev function    | Duty cycle down  |        -         |
 | RIGHT  | Timebase up      | Next function    | Duty cycle up    |        -         |
 | OK     | Run/Stop         | Hold             | Output on/off    | Enter / Toggle   |
 | PRM    | Cycle FFT views  | Softkey: View    | Freq presets     |        -         |
-| SELECT | Probe 1X/10X     | Softkey (Reset)  | Cycle waveform   | Cycle comp type  |
-| MOVE   | Trigger edge     | Softkey (Func.)  |        -         |        -         |
-| TRIGGER| Cursor mode      | Softkey (Rel.)   |        -         |        -         |
+| SELECT | Cursor mode      | Softkey (Reset)  | Cycle waveform   | Cycle comp type  |
+| MOVE   | Arrow-key stage  | Softkey (Func.)  |        -         |        -         |
+| TRIGGER| Trigger panel    | Softkey (Rel.)   |        -         |        -         |
 | AUTO   | FFT auto-config  | Auto function    |        -         |        -         |
 | SAVE   | Screenshot       | Debug overlay    | Screenshot       | Screenshot       |
 +--------+------------------+------------------+------------------+------------------+

@@ -1115,6 +1115,13 @@ bool    fpga_apply_timebase(uint8_t code);
 bool    fpga_apply_trigger_level(int level);
 uint8_t fpga_trigger_code_from_level(int level);
 uint8_t fpga_acq_trig_code_get(void);
+/* Trigger source, reg 0x06 (EXP-86): write scope_state's source (0x00 CH1,
+ * 0x01 CH2) under the acq park; false = not written. The code in force: */
+bool    fpga_apply_trigger_source(void);
+uint8_t fpga_acq_trig_src_code_get(void);
+/* Channel on/off -> converter routing (PC1/PC2 mask); moves a trigger source
+ * off a switched-off channel. false = both off, refused, nothing changed. */
+bool    fpga_apply_channel_enables(void);
 bool    fpga_acq_auto_wait_is_override(void);
 void     fpga_acq_pair_gap_set(uint16_t ms);
 void     fpga_acq_post_edge_set(uint16_t ms);

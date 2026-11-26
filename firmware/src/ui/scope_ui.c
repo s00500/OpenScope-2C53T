@@ -31,6 +31,7 @@
 #include "scope_mask.h"
 #include "scope_vmap.h"
 #include "band_holes.h"
+#include "trig_menu.h"
 #ifdef FEATURE_FFT
 #include "fft_live.h"
 #include "fft_test_signals.h"
@@ -1591,7 +1592,7 @@ typedef struct {
     char        text[CHIP_TEXT];
 } band_chip_t;
 
-#define CHIP_MAX  10u       /* holes = chips + the popup <= BAND_MAX_HOLES */
+#define CHIP_MAX  16u       /* holes = chips + the popup <= BAND_MAX_HOLES */
 static band_chip_t g_chip[CHIP_MAX];
 static uint8_t     g_nchip;
 
@@ -1750,6 +1751,30 @@ static void scope_chips_build(const scope_state_t *ss, const theme_t *th)
                          th->background, FONT_ALIGN_LEFT);
             }
         }
+    }
+
+    /* The trigger panel (EXP-86), top right under the status row: a title,
+     * one row per setting with the selected one inverted, and a hint. Chips
+     * like everything else here, so it opens, changes and closes without a
+     * blank frame. Added last: it is on top of the cursor labels. */
+    if (scope_trig_menu.open) {
+        const int pw = 112;
+        const int px = LCD_WIDTH - 4 - pw;
+        int py = row0 + fh + 2 + 2;
+        chip_add(px, py, pw, 1, "Trigger", th->background, th->highlight,
+                 FONT_ALIGN_CENTER);
+        py += fh + 2;
+        for (uint8_t r = 0; r < TM_ROW_COUNT; r++, py += fh + 2) {
+            char t[32];
+            snprintf(t, sizeof(t), " %s %s", trig_menu_row_label(r),
+                     trig_menu_row_value(ss, r));
+            const bool sel = (scope_trig_menu.row == r);
+            chip_add(px, py, pw, 1, t,
+                     sel ? th->background : th->text_primary,
+                     sel ? th->text_primary : th->background, FONT_ALIGN_LEFT);
+        }
+        chip_add(px, py, pw, 1, " LT/RT change", th->text_secondary,
+                 th->background, FONT_ALIGN_LEFT);
     }
 
     /* While the popup is up, a chip under it is dropped, so the popup is

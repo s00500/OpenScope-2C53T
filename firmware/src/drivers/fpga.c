@@ -3496,6 +3496,10 @@ static volatile uint16_t acq_auto_wait_ms = 0;
  * fpga_reconcile_trigger_after_arm() hands the register to the UI level
  * right after the arm; fpga_apply_trigger_level() is the ONLY runtime path. */
 static volatile uint8_t acq_trig_code = 0xAD;
+/* Trigger source in force in reg 0x06: 0x00 = CH1, 0x01 = CH2. The arm burst
+ * writes 0x00; fpga_apply_trigger_source() and the boot reconcile keep it in
+ * step with scope_state (EXP-86). */
+static volatile uint8_t acq_trig_src_code = 0x00;
 /* EXP-47: a reg-0x08 or reg-0x01 write drops the capture in flight (NORMAL
  * stayed frozen after level +100 -> 0). The apply entry points raise this;
  * the acq task clears capture_in_flight on it and re-primes. */
@@ -3742,6 +3746,7 @@ void fpga_acq_read_br_set(uint8_t br)     { acq_read_br = br; }
 uint8_t fpga_acq_read_br_get(void)      { return acq_read_br; }
 uint16_t fpga_acq_pair_gap_get(void)    { return acq_pair_gap_ms; }
 uint8_t fpga_acq_trig_code_get(void)      { return acq_trig_code; }
+uint8_t fpga_acq_trig_src_code_get(void)  { return acq_trig_src_code; }
 
 /* UI trigger level (-100..100, screen pixels about mid-scale, the renderer's
  * own convention: SCOPE_H px == 256 counts, SCOPE_H = LCD_HEIGHT-16-18 = 206
@@ -3816,6 +3821,52 @@ bool fpga_apply_trigger_level(int level)
     acq_trig_code = code;
     acq_reprime_req = true;
     fpga_acq_resume();
+    return true;
+}
+
+/* Trigger source -> SPI3 reg 0x06 (EXP-86; from deOliveira-R's f4dfc23).
+ * Until now only the boot arm wrote it (0x00), so choosing CH2 as the source
+ * (remote `trig.source`) moved the soft trigger and the label while the FPGA
+ * kept firing on CH1: with a signal on CH2 alone, NORMAL never fired (handoff
+ * 2026-11-26). Stock sends op06 = ms[0x16] on every source change (0x0800C890,
+ * 0x0800C96C) and after a channel switch-off (0x080235E8); EXP-72 saw 0x01
+ * move the trigger to CH2. Like reg 0x08, the write drops the capture in
+ * flight. Same park contract as the level: false = nothing written. */
+bool fpga_apply_trigger_source(void)
+{
+    const scope_state_t *ss = scope_state_get();
+    const uint8_t code = (ss->trigger.source == TRIG_SRC_CH2) ? 0x01u : 0x00u;
+    if (!fpga_acq_pause())
+        return false;
+    fpga_scope_write_reg(0x06, code);
+    acq_trig_src_code = code;
+    acq_reprime_req = true;
+    fpga_acq_resume();
+    return true;
+}
+
+/* Channel on/off -> the converter routing (mask 1/2/3 on PC1/PC2). Until now
+ * a channel switch changed the drawing only; the mask followed the enables
+ * only at the next volts/div change. A trigger source on a channel that is
+ * now off moves to the one that is on (stock flips ms[0x16], 0x080235E8), and
+ * the record in flight is dropped: it was captured with the old routing.
+ * Refuses both-off. From deOliveira-R's f4dfc23, without their bank rule
+ * (scope_vpos_apply), which this tree does not have. */
+bool fpga_apply_channel_enables(void)
+{
+    scope_state_t *ss = scope_state_get();
+    if (!ss->ch1.enabled && !ss->ch2.enabled)
+        return false;
+    const trigger_source_t src_was = ss->trigger.source;
+    if (ss->trigger.source == TRIG_SRC_CH2 && !ss->ch2.enabled)
+        ss->trigger.source = TRIG_SRC_CH1;
+    if (ss->trigger.source == TRIG_SRC_CH1 && !ss->ch1.enabled)
+        ss->trigger.source = TRIG_SRC_CH2;
+    if (ss->trigger.source != src_was)
+        (void)fpga_apply_trigger_source();
+    fpga_set_channel_mask((ss->ch1.enabled && ss->ch2.enabled) ? 3u
+                          : (ss->ch2.enabled ? 2u : 1u));
+    acq_reprime_req = true;
     return true;
 }
 
@@ -4134,7 +4185,13 @@ static void fpga_warmtest_acq_task(void *pv)
          * fast periodic signal, whose display the soft trigger already
          * aligns to the chosen edge) is committed unfiltered and counted. */
         if (triggered && acq_edge_filter) {
-            trig_edge_class_t ec = trig_edge_classify(w1, (int)acq_trig_code + (int)FPGA_ADC_OFFSET);
+            /* The SOURCE channel's record (reg 0x06, EXP-86): with CH2 as
+             * the source CH1's shape says nothing about the edge that fired.
+             * The level offset was measured on CH1 and on ranges 5/7
+             * (EXP-55/56); on CH2 a wrong one comes back UNKNOWN (committed
+             * unfiltered), not as a wrong verdict. */
+            const volatile uint8_t *wsrc = (acq_trig_src_code == 0x01u) ? w2 : w1;
+            trig_edge_class_t ec = trig_edge_classify(wsrc, (int)acq_trig_code + (int)FPGA_ADC_OFFSET);
             bool want_rising = (fpga_stock_trigger_edge_byte() == (uint8_t)TRIG_RISING);
             if (ec == TRIG_EDGE_CLASS_UNKNOWN) {
                 fpga.acq_edge_unknown++;
@@ -4855,6 +4912,14 @@ void fpga_reconcile_trigger_after_arm(void)
     SPI3_CS_DEASSERT();
     acq_trig_code = code;
     fpga_trig_reconcile_code = code;
+    /* The arm burst wrote source 0x00 (CH1); a persisted CH2 source must
+     * reach reg 0x06 too, or the FPGA fires on CH1 under a "CH2" label. */
+    const uint8_t src = (ss->trigger.source == TRIG_SRC_CH2) ? 0x01u : 0x00u;
+    SPI3_CS_ASSERT();
+    spi3_xfer(0x06);
+    spi3_xfer(src);
+    SPI3_CS_DEASSERT();
+    acq_trig_src_code = src;
 }
 
 /* Vertical sibling of the reconcile above: fpga_init() applies the frontend

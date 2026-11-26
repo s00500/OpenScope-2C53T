@@ -20,6 +20,7 @@
 #include "font.h"
 #include "scope_state.h"
 #include "scope_cal.h"
+#include "trig_menu.h"
 #include "../ui/scope_timebase.h"
 #include "signal_gen.h"
 #include "theme.h"
@@ -118,6 +119,7 @@ void input_set_persist(bool on)
 /* Mode entry: the FPGA commands and analog MUX config each mode needs. */
 static void enter_mode(device_mode_t m)
 {
+    trig_menu_close(&scope_trig_menu);      /* the panel belongs to the scope */
     current_mode = m;
     if (current_mode == MODE_SETTINGS) {
         settings_selected = 0;
@@ -129,6 +131,14 @@ static void enter_mode(device_mode_t m)
         fpga_enter_siggen_mode();
     } else if (current_mode == MODE_OSCILLOSCOPE) {
         fpga_enter_scope_mode();
+        /* The routing follows the channel switches on entry too: a remote
+         * ch.enabled outside the scope only changed the state (EXP-86). */
+        (void)fpga_apply_channel_enables();
+        {   /* likewise a trigger source set outside the scope */
+            const uint8_t want = (scope_state_get()->trigger.source == TRIG_SRC_CH2) ? 1u : 0u;
+            if (fpga_acq_trig_src_code_get() != want)
+                (void)fpga_apply_trigger_source();
+        }
     } else {
         GPIOC->clr = (1U << 11);  /* PC11 LOW — meter disable */
     }
@@ -452,11 +462,90 @@ static void mask_auto_key(char *pb, size_t n)
  * Main button dispatcher
  * ═══════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════
+ * Trigger panel keys (EXP-86)
+ *
+ * While the panel is open it owns the keys: UP/DOWN pick the row, LEFT/RIGHT
+ * change it (OK = RIGHT), TRIGGER or MENU close it, any other key closes it
+ * and does nothing else. POWER is never taken. Everything redraws through
+ * DCMD_SCOPE_LIVE: the panel and the trigger fields are live-epoch state, so
+ * using the panel never blanks the screen. Returns true if it took the key.
+ * ═══════════════════════════════════════════════════════════════════ */
+static bool trig_panel_key(button_id_t button, QueueHandle_t dq, scope_state_t *ss)
+{
+    if (!scope_trig_menu.open || current_mode != MODE_OSCILLOSCOPE ||
+        button == BTN_POWER)
+        return false;
+
+    int dir = 0;
+    switch (button) {
+    case BTN_UP:    trig_menu_row_step(&scope_trig_menu, -1); break;
+    case BTN_DOWN:  trig_menu_row_step(&scope_trig_menu, +1); break;
+    case BTN_LEFT:  dir = -1; break;
+    case BTN_RIGHT:
+    case BTN_OK:    dir = +1; break;
+    default:        trig_menu_close(&scope_trig_menu); break;
+    }
+
+    if (dir != 0) {
+        const trigger_source_t src_was = ss->trigger.source;
+        const uint8_t r = trig_menu_change(&scope_trig_menu, ss, dir);
+        if (r & TM_REFUSED_OFF) {
+            scope_show_popup((ss->trigger.source == TRIG_SRC_CH1) ? "CH2 is off"
+                                                                   : "CH1 is off");
+        } else if ((r & TM_CHANGED_SOURCE) && !fpga_apply_trigger_source()) {
+            ss->trigger.source = src_was;    /* the wire did not change: say so */
+            scope_show_popup("Source NOT SET");
+        }
+    }
+    send_cmd(dq, DCMD_SCOPE_LIVE);
+    return true;
+}
+
+/* CH1 / CH2: select, then off; on when off (trig_menu.h, chan_key_decide).
+ * Coupling is not on these keys any more; it is in Settings -> Oscilloscope. */
+static void channel_key(uint8_t ch, QueueHandle_t dq, scope_state_t *ss, char *pb, size_t n)
+{
+    channel_state_t *c = ch ? &ss->ch2 : &ss->ch1;
+    const char *name = ch ? "CH2" : "CH1";
+    switch (chan_key_decide(ch, (uint8_t)active_channel, ss->ch1.enabled, ss->ch2.enabled)) {
+    case CHKEY_SELECT:
+        active_channel = ch;
+        snprintf(pb, n, "%s selected", name);
+        break;
+    case CHKEY_TURN_ON:
+        c->enabled = true;
+        active_channel = ch;
+        snprintf(pb, n, fpga_apply_channel_enables() ? "%s on" : "%s on, NOT ROUTED", name);
+        break;
+    case CHKEY_TURN_OFF:
+        c->enabled = false;
+        if (!fpga_apply_channel_enables()) {
+            c->enabled = true;               /* both-off refused: nothing changed */
+            snprintf(pb, n, "%s stays on", name);
+            break;
+        }
+        /* The other channel takes the controls: UP/DOWN on an invisible
+         * channel would change nothing the user can see. */
+        active_channel = ch ? 0 : 1;
+        snprintf(pb, n, "%s off", name);
+        break;
+    case CHKEY_REFUSE_LAST:
+    default:
+        snprintf(pb, n, "%s: last channel on", name);
+        break;
+    }
+    popup_and_redraw(dq, pb);
+}
+
 uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
 {
     scope_state_t *ss = scope_state_get();
     uint8_t cmd = DCMD_REDRAW_ALL;
     char pb[24];
+
+    if (trig_panel_key(button, dq, ss))
+        return DCMD_SCOPE_LIVE;
 
     /* Softkeys (docs/specs/platform/softkey-ui.md): in the meter, the four
      * buttons under the screen do what the bar above them says. Caught here,
@@ -498,20 +587,9 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
     /* -- Channel buttons ------------------------------------------ */
 
     case BTN_CH1:
-        if (current_mode == MODE_OSCILLOSCOPE) {
-            active_channel = 0;
-            channel_cycle_coupling(0, &ss->ch1, "CH1", pb, sizeof(pb));
-            popup_and_redraw(dq, pb);
-        } else {
-            send_cmd(dq, cmd);
-        }
-        break;
-
     case BTN_CH2:
         if (current_mode == MODE_OSCILLOSCOPE) {
-            active_channel = 1;
-            channel_cycle_coupling(1, &ss->ch2, "CH2", pb, sizeof(pb));
-            popup_and_redraw(dq, pb);
+            channel_key(button == BTN_CH2 ? 1u : 0u, dq, ss, pb, sizeof(pb));
         } else {
             send_cmd(dq, cmd);
         }
@@ -525,8 +603,9 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
             if (scope_view == SCOPE_VIEW_TIME)
 #endif
             {
-                /* Toggle cursor mode in time view */
-                scope_cursor_cycle_mode();
+                /* Time view: the trigger panel (stock's "Trigger Settings").
+                 * The cursors moved to SELECT (2026-11-26). */
+                trig_menu_open(&scope_trig_menu);
                 send_cmd(dq, DCMD_SCOPE_LIVE);
                 break;
             }
@@ -748,13 +827,11 @@ uint8_t input_handle_button(button_id_t button, QueueHandle_t dq)
                      m.stop_on_fail ? "ON" : "OFF");
             popup_and_redraw(dq, pb);
         } else if (current_mode == MODE_OSCILLOSCOPE) {
-            /* Probe 1X/10X: scales every volts readout (scope_cal applies
-             * it). Silent until 2026-10-03, when it also scaled nothing. */
-            channel_state_t *ch = (active_channel == 0) ? &ss->ch1 : &ss->ch2;
-            scope_cycle_probe(ch);
-            snprintf(pb, sizeof(pb), "CH%d probe %s", active_channel + 1,
-                     probe_labels[ch->probe]);
-            popup_and_redraw(dq, pb);
+            /* Cursors (2026-11-26, the user; they were on TRIGGER): Off ->
+             * Vertical -> Horizontal -> Both -> Off. Probe 1X/10X, which used
+             * to be here, is in Settings -> Oscilloscope (CHn Probe). */
+            scope_cursor_cycle_mode();
+            send_cmd(dq, DCMD_SCOPE_LIVE);
         }
         break;
 

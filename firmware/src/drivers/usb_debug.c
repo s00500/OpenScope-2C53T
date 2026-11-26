@@ -2691,11 +2691,37 @@ static void cmd_fpga_scope_edge(const char *args)
                      fpga_acq_edge_filter_get() ? "ON" : "OFF");
 }
 
+/* `fpga scope source [ch1|ch2]` (EXP-86) — the trigger source: scope_state
+ * AND reg 0x06, through fpga_apply_trigger_source() (which parks the acq task
+ * itself). Prints the state and the code in force, so a disagreement shows. */
+static void cmd_fpga_scope_source(const char *args)
+{
+    while (*args == ' ') args++;
+    scope_state_t *ss = scope_state_get();
+    if (*args) {
+        trigger_source_t to;
+        if      (strncmp(args, "ch1", 3) == 0) to = TRIG_SRC_CH1;
+        else if (strncmp(args, "ch2", 3) == 0) to = TRIG_SRC_CH2;
+        else { usb_send_str("usage: fpga scope source [ch1|ch2]\r\n"); return; }
+        const bool on = (to == TRIG_SRC_CH2) ? ss->ch2.enabled : ss->ch1.enabled;
+        if (!on) { usb_send_str("refused: that channel is off\r\n"); return; }
+        const trigger_source_t was = ss->trigger.source;
+        ss->trigger.source = to;
+        if (!fpga_apply_trigger_source()) {
+            ss->trigger.source = was;
+            usb_send_str("NOT SET: the acquisition task did not park\r\n");
+        }
+    }
+    usb_debug_printf("trigger source %s (reg 0x06 = 0x%02X)\r\n",
+                     trigger_source_labels[ss->trigger.source],
+                     (unsigned)fpga_acq_trig_src_code_get());
+}
+
 /* `fpga scope coupling` — READ-ONLY: each channel's coupling label beside the
  * relay pin it is supposed to describe (PD12 CH1 / PD13 CH2, HIGH = DC) and
- * the pin's GPIO mode. Change it with the buttons (`btn ch1` / `btn ch2`):
- * that is the path under test, and a second writer here would be a second
- * place for the label and the relay to disagree. */
+ * the pin's GPIO mode. Change it in Settings -> Oscilloscope (the CH keys no
+ * longer cycle it, EXP-86): that is the path under test, and a second writer
+ * here would be a second place for the label and the relay to disagree. */
 static void cmd_fpga_scope_coupling(const char *args)
 {
     (void)args;
@@ -8405,6 +8431,8 @@ static const shell_cmd_t shell_cmds[] = {
           "fpga scope coupling             Coupling label vs PD12/PD13 relay pins (read-only)\r\n"),
     CMD_A("fpga scope edge", cmd_fpga_scope_edge, 0,
           "fpga scope edge [rising|falling] Trigger edge (display soft trigger + MCU edge filter)\r\n"),
+    CMD_A("fpga scope source", cmd_fpga_scope_source, 0,
+          "fpga scope source [ch1|ch2]     Trigger source: state AND reg 0x06\r\n"),
     CMD_A("btn", cmd_btn, SC_NEEDARGS,
           "btn <name> [n]                  Inject a button press (not power) into the UI\r\n"),
     CMD_A("mask", cmd_mask, 0,

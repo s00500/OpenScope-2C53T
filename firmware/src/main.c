@@ -26,6 +26,7 @@ extern void system_clock_config(void);
 #include "watchdog.h"
 #include "scope_state.h"
 #include "scope_cal.h"
+#include "trig_menu.h"
 #include "input_handler.h"
 #include "remote_ops.h"
 #include "theme.h"
@@ -358,9 +359,8 @@ static uint32_t scope_ui_epoch(const scope_state_t *s)
                             | ((uint32_t)s->ch2.bw_limit << 16));
     h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->ch2.position);
 
-    h = redraw_epoch_mix(h, (uint32_t)s->trigger.mode
-                            | ((uint32_t)s->trigger.edge   << 4)
-                            | ((uint32_t)s->trigger.source << 8));
+    /* Trigger mode, edge and source are in scope_live_epoch(): the
+     * compositor draws everything they change (EXP-86). */
     h = redraw_epoch_mix(h, (uint32_t)(uint16_t)s->trigger.level);
 
     /* Cursor state is NOT here: see scope_live_epoch(). */
@@ -401,6 +401,13 @@ static uint32_t scope_live_epoch(const scope_state_t *s)
                             | ((uint32_t)s->cursor.active << 4));
     h = redraw_epoch_mix(h, ((uint32_t)s->cursor.v1_x << 16) | s->cursor.v2_x);
     h = redraw_epoch_mix(h, ((uint32_t)s->cursor.h1_y << 16) | s->cursor.h2_y);
+    /* The trigger panel and what it sets (EXP-86): status chip, arrow, the
+     * level line's channel and the soft trigger are all compositor-drawn. */
+    h = redraw_epoch_mix(h, (uint32_t)s->trigger.mode
+                            | ((uint32_t)s->trigger.edge   << 4)
+                            | ((uint32_t)s->trigger.source << 8)
+                            | ((uint32_t)scope_trig_menu.open << 12)
+                            | ((uint32_t)scope_trig_menu.row  << 16));
     return h;
 }
 
@@ -654,6 +661,11 @@ static void vDisplayTask(void *pvParameters)
                     lq.live_epoch      = scope_live_epoch(sl);
                     lq.incremental_ok  = scope_incremental_available(sl);
                     lq.full_min_frames = SCOPE_FULL_MIN_FRAMES;
+                    /* A popup raised with the change (a refused panel value)
+                     * must show even when the scope is stopped and no
+                     * periodic draw follows. */
+                    lq.new_data        = scope_popup_active();
+                    lq.force           = scope_popup_active() && !lq.incremental_ok;
                     const redraw_action_t la = redraw_gate_step(&scope_gate, &lq);
                     if (la == REDRAW_FULL) ui_scope_full_why[2]++;
                     if (la != REDRAW_SKIP)

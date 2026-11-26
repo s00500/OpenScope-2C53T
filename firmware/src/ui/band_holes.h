@@ -31,7 +31,7 @@ typedef struct {
 
 /* Most segments one column can split into: one more than the holes that can
  * cross it. The scope's chip set is small (see BAND_MAX_HOLES). */
-#define BAND_MAX_HOLES   12u
+#define BAND_MAX_HOLES   18u
 #define BAND_MAX_SEGS    (BAND_MAX_HOLES + 1u)
 
 /*

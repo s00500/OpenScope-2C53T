@@ -248,10 +248,22 @@ static esp_apply_result_t apply_channel(uint8_t c, uint8_t off, int32_t i)
     channel_state_t *ch = c ? &ss->ch2 : &ss->ch1;
 
     switch (off) {
-    case ESP_KEY_CH_ENABLED:
+    case ESP_KEY_CH_ENABLED: {
         if (!is_bool(i)) return ESP_APPLY_BAD_ARG;
+        const bool was = ch->enabled;
         ch->enabled = (i != 0);
+        /* Routing too, as the CH keys (EXP-86); outside the scope the state
+         * is kept and scope entry applies it. Both off is refused. */
+        if (!ss->ch1.enabled && !ss->ch2.enabled) {
+            ch->enabled = was;
+            return ESP_APPLY_BAD_ARG;
+        }
+        if (current_mode == MODE_OSCILLOSCOPE && !fpga_apply_channel_enables()) {
+            ch->enabled = was;
+            return ESP_APPLY_HW_REFUSED;
+        }
         return ESP_APPLY_OK;
+    }
     case ESP_KEY_CH_PROBE:
         if (!in_range(i, 0, PROBE_COUNT - 1)) return ESP_APPLY_BAD_ARG;
         ch->probe = (probe_t)i;
@@ -353,10 +365,20 @@ static esp_apply_result_t apply_param(uint8_t key, const esp_value_t *v)
         if (!in_range(i, 0, TRIG_EDGE_COUNT - 1)) return ESP_APPLY_BAD_ARG;
         ss->trigger.edge = (trigger_edge_t)i;
         return ESP_APPLY_OK;
-    case ESP_KEY_TRIG_SOURCE:
+    case ESP_KEY_TRIG_SOURCE: {
         if (!in_range(i, 0, TRIG_SRC_COUNT - 1)) return ESP_APPLY_BAD_ARG;
+        /* Until EXP-86 this set the label and the soft trigger only; the
+         * FPGA kept firing on CH1 (reg 0x06 was written at boot alone). */
+        const trigger_source_t was = ss->trigger.source;
+        const bool on = (i == TRIG_SRC_CH2) ? ss->ch2.enabled : ss->ch1.enabled;
+        if (!on) return ESP_APPLY_BAD_ARG;          /* as the panel: a live channel */
         ss->trigger.source = (trigger_source_t)i;
+        if (current_mode == MODE_OSCILLOSCOPE && !fpga_apply_trigger_source()) {
+            ss->trigger.source = was;
+            return ESP_APPLY_HW_REFUSED;
+        }
         return ESP_APPLY_OK;
+    }
     case ESP_KEY_TRIG_X:
         if (!in_range(i, 8, 312)) return ESP_APPLY_BAD_ARG;
         ss->trig_x = (int16_t)i;
