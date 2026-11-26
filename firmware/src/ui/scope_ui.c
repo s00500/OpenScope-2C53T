@@ -625,7 +625,7 @@ static void draw_measurement_badges(const scope_state_t *ss, const theme_t *th)
     const uint16_t colo = (mc == 2u) ? th->ch1 : th->ch2;
     const volatile uint8_t *bufm = (mc == 2u) ? fpga_get_ch2_buf() : fpga_get_ch1_buf();
 
-    /* ── Row 1 — the measured channel ───────────────────────────── */
+    /* ── Row 1: the measured channel ───────────────────────────── */
     uint16_t x = 2;
     uint16_t y1 = BADGE_ROW_Y;
 
