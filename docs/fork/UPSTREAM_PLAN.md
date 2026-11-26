@@ -12,6 +12,7 @@ that adds or changes a row.
 |---|---|---|
 | `feat/remote-control` | worktree `../OpenScope-2C53T-remote` | the integration branch: PR #47's head (stacked on #41) + `origin/main` merged (8d9ccc3) + our commits |
 | `fix/scope-freq-hang` | worktree `../OpenScope-2C53T-freqfix` | topic branch off `origin/main` for PR #108 |
+| `fix/acq-railed-input` | worktree `../OpenScope-2C53T-acqgate` | topic branch off `origin/main` for the clipped-input fix (EXP-82) |
 
 The Go host CLI is a separate repository (`../openscope-cli`), not part of
 this repo.
@@ -36,7 +37,7 @@ Applies-to-main column: checked 2026-11-25 against `origin/main` 7480998 with
 | 392ff97 | chore: ignore `.scratchpad/` and `.playwright-mcp/` | none needed | yes | trivial; fold into any PR that wants it |
 | d11f69c | exp(79): the generator against a Rigol DS1104Z | EXP-79 file + `reverse_engineering/captures/exp79/` | yes | evidence for #68; offer as a comment with the user's approval |
 | 64dc401 | fix(siggen): bottom bar shows the live generator state; the screen stays above the bar | screenshots on my unit (output on/off, remote change repaints the bar) | not checked; status_bar.c on main is the same code, main.c context may differ | candidate, after the DAC2 generator lands (it uses its API) |
-| 989f144 | fix(acq): a clipped input no longer freezes the scope (`acq_gate.h`) | EXP-82; `test_acq_gate` 12 checks (old gate fails 4); on my unit railed levels commit at the normal rate | yes with `--3way` | **candidate**: the same gate is on `origin/main` and on `bench/parity`; a small PR on its own |
+| 989f144 | fix(acq): a clipped input no longer freezes the scope (`acq_gate.h`) | EXP-82; `test_acq_gate` 12 checks (old gate fails 4); on my unit railed levels commit at the normal rate | yes with `--3way` | **PR prepared**: branch `fix/acq-railed-input` (6e500b6, off `origin/main` 7480998) pushed to `fork`; text drafted, waiting for the user's approval to open |
 | 0a722fd | exp(80): GEN's absolute level after the Rigol's Self-Cal | EXP-80 + `captures/exp80` | yes | evidence for #68 |
 | aa165cc | exp(81): timebase codes 0x06..0x14 are the round ladder to 50 ppm | EXP-81 + `captures/exp81` | yes | evidence for PR #51 / #84 (a second and third unit on the same ladder) |
 | c42bbe9 | exp(83): CH1 gain per range (1-2-5 ladder), crosstalk, frequency badge | EXP-83 + `captures/exp83` | yes | evidence for a `scope_cal.c` revision (rows 4/8/9) |
