@@ -19,7 +19,8 @@
  *
  * The mailbox holds one key, and emulated time runs slower than the clock,
  * so presses are queued: the viewer reads the mailbox back and writes the
- * next key only once the firmware has taken the last one.
+ * next key only once the firmware has taken the last one. Every 250 ms it
+ * also writes an LCD NOP, which makes the LCD model write out the frame.
  *
  * Build:  make            (needs SDL3 3.2 or later: brew install sdl3)
  * Run:    ./run_emulator.sh   (builds the image, starts Renode, opens this)
@@ -148,7 +149,7 @@ static struct {
     mon_state_t st;
     uint32_t    addr;           /* g_emu_key */
     bool        no_symbol;      /* the ELF has no g_emu_key: not an emu build */
-    Uint64      t_sent, t_next, t_try;
+    Uint64      t_sent, t_next, t_try, t_flush;
     char        rx[8192];
     size_t      rxn;
     uint8_t     q[32];          /* queued key indexes */
@@ -277,6 +278,14 @@ static void mon_service(Uint64 now)
         } else {
             mon.st = MON_IDLE;
         }
+    }
+    /* The LCD model writes FB_PATH only every 5000 pixels, so the end of a
+     * redraw on a still screen (a menu highlight) stays unwritten; an LCD
+     * NOP makes it write the frame (renode/st7789v_peripheral.py). The
+     * model keeps its pixel state across it, so a draw in progress goes on. */
+    if (mon.addr != 0 && now >= mon.t_flush) {
+        mon.t_flush = now + 250 * MS;
+        mon_send("sysbus WriteWord 0x6001FFFE 0x0000\n");
     }
     if (mon.st == MON_IDLE && mon_queued() > 0 && now >= mon.t_next) {
         mon.st = MON_READ;
