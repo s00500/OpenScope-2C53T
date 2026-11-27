@@ -20,4 +20,17 @@ void continuity_buzzer_snapshot(bool *task_started, bool *active,
                                 uint32_t *toggle_count,
                                 uint32_t *create_fail_count);
 
+/* The PC3 detector and the reading's veto, for the shell's `buzzer status`.
+ * Read without a lock: fields may be one sample apart. */
+typedef struct {
+    uint32_t pc3_edges;      /* EXINT3 rising edges since boot */
+    bool     seen;           /* a tone has been seen this session */
+    bool     is_short;       /* the tone (or its 105 ms hold) is on */
+    bool     muted;          /* the reading mutes it (continuity_veto.h) */
+    uint32_t onset_age_ms;   /* since the tone started; 0 when no tone */
+    uint32_t veto_upd;       /* update_count of the last frame the veto saw */
+} continuity_pc3_debug_t;
+
+void continuity_buzzer_pc3_snapshot(continuity_pc3_debug_t *out);
+
 #endif /* CONTINUITY_BUZZER_H */

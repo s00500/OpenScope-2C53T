@@ -305,3 +305,17 @@ void continuity_buzzer_snapshot(bool *task_started, bool *active,
         *create_fail_count = buzzer_create_fail_count;
     }
 }
+
+void continuity_buzzer_pc3_snapshot(continuity_pc3_debug_t *out)
+{
+    if (!out)
+        return;
+    out->pc3_edges = pc3_edges;
+    out->seen = hw.seen;
+    out->is_short = hw.is_short;
+    out->muted = hw.is_short && hw.veto.muted;
+    out->onset_age_ms = hw.is_short
+        ? (uint32_t)((xTaskGetTickCount() - hw.onset_tick) * portTICK_PERIOD_MS)
+        : 0;
+    out->veto_upd = hw.veto.last_upd;
+}

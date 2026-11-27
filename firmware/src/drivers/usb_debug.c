@@ -1621,6 +1621,31 @@ static void cmd_buzzer_test(const char *args)
                      create_failures);
 }
 
+/* Read-only: what the continuity beep is doing and why, one line, for a host
+ * script to poll (EXP-93 addendum bench test). */
+static void cmd_buzzer_status(void)
+{
+    bool started = false, active = false;
+    uint32_t toggles = 0, create_failures = 0;
+    continuity_pc3_debug_t d;
+    meter_reading_t r;
+
+    continuity_buzzer_snapshot(&started, &active, &toggles, &create_failures);
+    continuity_buzzer_pc3_snapshot(&d);
+    bool have = meter_data_snapshot(&r);
+    usb_debug_printf("buzzer t=%lu active=%u toggles=%lu edges=%lu seen=%u short=%u "
+                     "muted=%u age=%lu vupd=%lu upd=%lu val=%ld unit=%s cls=%u\r\n",
+                     (unsigned long)xTaskGetTickCount(),
+                     active ? 1U : 0U, (unsigned long)toggles,
+                     (unsigned long)d.pc3_edges, d.seen ? 1U : 0U,
+                     d.is_short ? 1U : 0U, d.muted ? 1U : 0U,
+                     (unsigned long)d.onset_age_ms, (unsigned long)d.veto_upd,
+                     have ? (unsigned long)r.update_count : 0UL,
+                     have && r.valid ? (long)(r.value * 1000.0f) : -1L,
+                     have && r.valid && r.unit_suffix ? r.unit_suffix : "-",
+                     have ? (unsigned)r.result_class : 0U);
+}
+
 static void cmd_gpio_read(const char *args)
 {
     gpio_type *port;
@@ -8395,6 +8420,8 @@ static const shell_cmd_t shell_cmds[] = {
           "gpio read <port><pin>           Read GPIO pin\r\n"),
     CMD_V("gpio scan", cmd_gpio_scan, SC_EXACT,
           "gpio scan                       Scan FPGA-related pins\r\n"),
+    CMD_V("buzzer status", cmd_buzzer_status, SC_EXACT,
+          "buzzer status                   Continuity beep: PC3 tone, veto, reading\r\n"),
     CMD_A("buzzer test", cmd_buzzer_test, 0,
           "buzzer test [ms]                Force continuity buzzer briefly\r\n"),
     CMD_A("mem read", cmd_mem_read, SC_NEEDARGS,
