@@ -279,6 +279,9 @@ typedef esp_wave_result_t (*esp_wave_fn)(uint8_t channel_mask, esp_wave_snapshot
  * keys are added without a version bump; `len` always equals the key's type
  * size below, which the host may check. A key is ABSENT when this build has
  * no such thing (e.g. `view` without FEATURE_FFT) -- never sent as a guess.
+ * The calibrated absolute volts (`trig.volts`, `chN.zero`) are also absent
+ * while there is no calibration to say them with, as the LCD then falls back
+ * to the code: a host shows the code, never a guessed volt.
  *
  * SET_PARAM payload: [u8 key][value of exactly the key's type size]. The
  * reply to a write that took is the whole STATE read back AFTER it, so a host
@@ -333,8 +336,14 @@ typedef esp_wave_result_t (*esp_wave_fn)(uint8_t channel_mask, esp_wave_snapshot
 #define ESP_KEY_CH_VDIV         1       /* u8     frontend range 0..9 (fpga_apply_vdiv) */
 #define ESP_KEY_CH_COUPLING     2       /* u8     0 DC 1 AC (2 GND is refused: no hardware path) */
 #define ESP_KEY_CH_PROBE        3       /* u8     0 x1 1 x10 */
-#define ESP_KEY_CH_UV_PER_DIV   4       /* u32 RO bench-measured volts/div at the BNC, uV; 0 = none */
+#define ESP_KEY_CH_UV_PER_DIV   4       /* u32 RO bench-measured volts/div at the BNC, uV; 0 = none
+                                         *        (the probe factor is CH_PROBE's: a host applies it) */
 #define ESP_KEY_CH_VDIV_TIER    5       /* u8  RO ESP_TIER_* of UV_PER_DIV */
+#define ESP_KEY_CH_POSITION     6       /* i16    vertical position, LCD rows up (26 per division),
+                                         *        -130..130: MOVE -> Position's display offset */
+#define ESP_KEY_CH_ZERO         7       /* f32 RO where 0 V at the BNC lands, in record counts (the
+                                         *        WAVEFORM_FRAME sample scale), at the range and offset
+                                         *        reference in force (EXP-89); absent with no zero */
 
 #define ESP_KEY_METER_FUNCTION  0x30    /* u8     meter submode 0..10 */
 #define ESP_KEY_METER_LAYOUT    0x31    /* u8     0 big 1 graph 2 stats 3 fuse 4 limits */
@@ -349,6 +358,12 @@ typedef esp_wave_result_t (*esp_wave_fn)(uint8_t channel_mask, esp_wave_snapshot
 #define ESP_KEY_SG_DUTY         0x44    /* u8     % 0..100 (Square and Sawtooth only) */
 #define ESP_KEY_SG_OUTPUT       0x45    /* u8     bool */
 #define ESP_KEY_SG_FREQ_ACTUAL  0x46    /* f32 RO Hz TMR7 really produces (quantised); 0 while off */
+
+/* Scope, continued (0x10..0x1F is full). */
+#define ESP_KEY_TRIG_VOLTS      0x50    /* f32 RO the hardware trigger level in volts at the source
+                                         *        channel's probe tip, from the code in force less
+                                         *        that channel's zero (EXP-89): what the LCD's
+                                         *        "Trig" popup shows; absent with no gain or zero */
 
 /* Actions (ACTION payload [u8 action][u8 arg]). */
 #define ESP_ACT_METER_RESET     0x01    /* clear min/max/avg; arg 0 */

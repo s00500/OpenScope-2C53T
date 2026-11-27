@@ -140,6 +140,9 @@ static void state_provider(esp_state_writer_t *w)
     esp_state_put_int(w, ESP_KEY_COUNTS_PER_DIV, 32);
     esp_state_put_f32(w, ESP_KEY_SG_FREQ, 1234.5f);
     esp_state_put_int(w, (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV), 7);
+    esp_state_put_int(w, (uint8_t)(ESP_KEY_CH_BASE(0) + ESP_KEY_CH_POSITION), -39);
+    esp_state_put_f32(w, (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_ZERO), 44.75f);
+    esp_state_put_f32(w, ESP_KEY_TRIG_VOLTS, -1.25f);
     if (state_put_unknown)
         esp_state_put_int(w, 0xEE, 5);
     state_dropped_seen = w->dropped;
@@ -807,6 +810,18 @@ static void test_get_state_tlv(void)
     }
     v = tlv_find(p, pl, (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV), &l);
     CHECK(v && l == 1 && v[0] == 7, "CH2 keys sit at CH_BASE(1)");
+    v = tlv_find(p, pl, (uint8_t)(ESP_KEY_CH_BASE(0) + ESP_KEY_CH_POSITION), &l);
+    CHECK(v && l == 2 && (int16_t)(v[0] | (v[1] << 8)) == -39, "chN.position: i16, rows down are negative");
+    {
+        float f = 0; uint32_t bits = 0;
+        v = tlv_find(p, pl, (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_ZERO), &l);
+        if (v && l == 4) { bits = v[0] | (v[1] << 8) | (v[2] << 16) | ((uint32_t)v[3] << 24); memcpy(&f, &bits, 4); }
+        CHECK(v && l == 4 && f == 44.75f, "chN.zero: f32 counts at CH_BASE + 7");
+        f = 0;
+        v = tlv_find(p, pl, ESP_KEY_TRIG_VOLTS, &l);
+        if (v && l == 4) { bits = v[0] | (v[1] << 8) | (v[2] << 16) | ((uint32_t)v[3] << 24); memcpy(&f, &bits, 4); }
+        CHECK(v && l == 4 && f == -1.25f, "trig.volts: f32, sign kept");
+    }
     CHECK(state_dropped_seen == 0, "nothing dropped for known keys with room");
     CHECK(off == tx_len, "exactly one frame");
 }
@@ -911,6 +926,13 @@ static void test_set_param_decoding(void)
     q[0] = (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV); q[1] = 9;
     route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 2), 0);
     CHECK(param_calls == 1 && param_key_seen == ESP_KEY_CH_BASE(1) + ESP_KEY_CH_VDIV, "CH2 key passed through");
+
+    reset(); m6_bind(); off = 0;
+    q[0] = (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_POSITION);
+    q[1] = (uint8_t)(-130 & 0xFF); q[2] = (uint8_t)((-130 >> 8) & 0xFF);
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 3), 0);
+    CHECK(param_calls == 1 && param_key_seen == ESP_KEY_CH_BASE(1) + ESP_KEY_CH_POSITION && param_seen.i == -130,
+          "CH2 position: i16 sign-extended, passed through");
 }
 
 static void test_set_param_rejections(void)
@@ -937,6 +959,16 @@ static void test_set_param_rejections(void)
     q[0] = (uint8_t)(ESP_KEY_CH_BASE(0) + ESP_KEY_CH_UV_PER_DIV); q[1] = 1; q[2] = 0; q[3] = 0; q[4] = 0;
     route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
     CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_READ_ONLY, "a measured gain is not writable");
+
+    off = 0; tx_len = 0;
+    q[0] = (uint8_t)(ESP_KEY_CH_BASE(1) + ESP_KEY_CH_ZERO); q[1] = 0; q[2] = 0; q[3] = 0; q[4] = 0;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_READ_ONLY, "a measured zero is not writable");
+
+    off = 0; tx_len = 0;
+    q[0] = ESP_KEY_TRIG_VOLTS; q[1] = 0; q[2] = 0; q[3] = 0; q[4] = 0;
+    route(buf, frame(buf, ESP_CMD_SET_PARAM, q, 5), 0);
+    CHECK(take(&off, p, &pl) == ESP_RSP_NAK && p[0] == ESP_ERR_READ_ONLY, "trigger volts are reported, not set (trig.level is)");
 
     off = 0; tx_len = 0;
     q[0] = ESP_KEY_THEME; q[1] = 1; q[2] = 0;
@@ -1021,7 +1053,7 @@ static void test_key_table_contract(void)
     uint8_t type = 0; bool rw = true;
     static const uint8_t ro[] = {
         ESP_KEY_MODE, ESP_KEY_TIMEBASE_HW, ESP_KEY_SAMPLE_RATE, ESP_KEY_RATE_TIER,
-        ESP_KEY_COUNTS_PER_DIV, ESP_KEY_TRIG_CODE, ESP_KEY_FRAME_GEN,
+        ESP_KEY_COUNTS_PER_DIV, ESP_KEY_TRIG_CODE, ESP_KEY_FRAME_GEN, ESP_KEY_TRIG_VOLTS,
     };
     for (size_t i = 0; i < sizeof(ro); i++) {
         CHECK(esp_comm_key_info(ro[i], &type, &rw) && !rw, "measured / derived keys are read-only");
@@ -1031,7 +1063,10 @@ static void test_key_table_contract(void)
         CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_VDIV), &type, &rw) && rw && type == ESP_VT_U8, "chN.vdiv u8 RW");
         CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_UV_PER_DIV), &type, &rw) && !rw && type == ESP_VT_U32, "chN.uv_per_div u32 RO");
         CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_VDIV_TIER), &type, &rw) && !rw, "chN.vdiv_tier RO");
+        CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_POSITION), &type, &rw) && rw && type == ESP_VT_I16, "chN.position i16 RW");
+        CHECK(esp_comm_key_info((uint8_t)(b + ESP_KEY_CH_ZERO), &type, &rw) && !rw && type == ESP_VT_F32, "chN.zero f32 RO");
     }
+    CHECK(esp_comm_key_info(ESP_KEY_TRIG_VOLTS, &type, &rw) && !rw && type == ESP_VT_F32, "trig.volts f32 RO");
     CHECK(esp_comm_key_info(ESP_KEY_TRIG_LEVEL, &type, &rw) && rw && type == ESP_VT_I16, "trig.level i16 RW");
     CHECK(esp_comm_key_info(ESP_KEY_SG_FREQ, &type, &rw) && rw && type == ESP_VT_F32, "sg.freq f32 RW");
     CHECK(esp_comm_key_info(ESP_KEY_SG_OFFSET, &type, &rw) && !rw && type == ESP_VT_F32, "sg.offset f32 RO");

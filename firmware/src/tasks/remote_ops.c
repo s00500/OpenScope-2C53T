@@ -26,6 +26,7 @@
 #include "scope_state.h"
 #include "scope_cal.h"
 #include "../ui/scope_timebase.h"
+#include "../ui/move_mode.h"
 #include "signal_gen.h"
 #include "theme.h"
 #include "math_channel.h"
@@ -188,6 +189,13 @@ void remote_state(esp_state_writer_t *w)
     esp_state_put_int(w, ESP_KEY_TRIG_X,      (int32_t)ss->trig_x);
     esp_state_put_int(w, ESP_KEY_TRIG_CODE,   (int32_t)fpga_acq_trig_code_get());
     esp_state_put_int(w, ESP_KEY_ACTIVE_CH,   (int32_t)active_channel);
+    /* The level in volts the LCD's "Trig" popup shows (EXP-89); absent while
+     * the source's range has no gain or zero, as the popup then shows the code. */
+    {
+        float tv;
+        if (scope_trigger_level_volts(&tv))
+            esp_state_put_f32(w, ESP_KEY_TRIG_VOLTS, tv);
+    }
 
     for (uint8_t c = 0; c < 2u; c++) {
         const channel_state_t *ch = c ? &ss->ch2 : &ss->ch1;
@@ -197,12 +205,21 @@ void remote_state(esp_state_writer_t *w)
         esp_state_put_int(w, (uint8_t)(base + ESP_KEY_CH_VDIV),     (int32_t)ch->vdiv_idx);
         esp_state_put_int(w, (uint8_t)(base + ESP_KEY_CH_COUPLING), (int32_t)ch->coupling);
         esp_state_put_int(w, (uint8_t)(base + ESP_KEY_CH_PROBE),    (int32_t)ch->probe);
+        /* At the BNC, as esp_comm.h promises: the probe factor is CH_PROBE's
+         * and the host applies it. scope_cal_volts_per_div() is probe-tip
+         * referred since 043926b, which put a x10 probe in twice on a host. */
         esp_state_put_int(w, (uint8_t)(base + ESP_KEY_CH_UV_PER_DIV),
                           tier != SCOPE_CAL_NONE
-                              ? (int32_t)round_u32(scope_cal_volts_per_div((uint8_t)(c + 1u),
-                                                                           ch->vdiv_idx) * 1e6f)
+                              ? (int32_t)round_u32(scope_cal_mv_per_count((uint8_t)(c + 1u), ch->vdiv_idx)
+                                                   * SCOPE_CAL_COUNTS_PER_DIV * 1000.0f)
                               : 0);
         esp_state_put_int(w, (uint8_t)(base + ESP_KEY_CH_VDIV_TIER), (int32_t)tier);
+        esp_state_put_int(w, (uint8_t)(base + ESP_KEY_CH_POSITION), (int32_t)ch->position);
+        /* Where 0 V lands, in record counts (EXP-89): with it a host can say
+         * absolute volts. Absent before the offset reference is armed. */
+        float z;
+        if (scope_chan_zero_counts((uint8_t)(c + 1u), &z))
+            esp_state_put_f32(w, (uint8_t)(base + ESP_KEY_CH_ZERO), z);
     }
 
     esp_state_put_int(w, ESP_KEY_METER_FUNCTION, (int32_t)meter_submode);
@@ -281,6 +298,13 @@ static esp_apply_result_t apply_channel(uint8_t c, uint8_t off, int32_t i)
         if (i != (int32_t)COUPLING_DC && i != (int32_t)COUPLING_AC) return ESP_APPLY_BAD_ARG;
         if (current_mode != MODE_OSCILLOSCOPE) return ESP_APPLY_WRONG_MODE;
         return input_apply_coupling(c, (coupling_t)i) ? ESP_APPLY_OK : ESP_APPLY_HW_REFUSED;
+    case ESP_KEY_CH_POSITION:
+        /* MOVE -> Position's display offset (rows up), any value in its
+         * range, not only its half-division steps. A display setting, so any
+         * mode, as on the device; the redraw after the op shows it. */
+        if (!in_range(i, -MOVE_VPOS_MAX, MOVE_VPOS_MAX)) return ESP_APPLY_BAD_ARG;
+        ch->position = (int16_t)i;
+        return ESP_APPLY_OK;
     default:
         return ESP_APPLY_UNKNOWN;           /* RO offsets never get here (esp_comm checks) */
     }

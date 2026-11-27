@@ -8948,7 +8948,9 @@ static esp_wave_result_t remote_waveform(uint8_t mask, esp_wave_snapshot_t *w)
         w->ch[c].count      = FPGA_ADC_BUF_SIZE;
         w->ch[c].vdiv_idx   = r;
         w->ch[c].vdiv_tier  = (uint8_t)scope_cal_get_tier(ch, r);
-        w->ch[c].uv_per_div = round_u32(scope_cal_volts_per_div(ch, r) * 1e6f);
+        /* At the BNC, as esp_comm.h promises (the host applies the probe):
+         * scope_cal_volts_per_div() is probe-tip referred since 043926b. */
+        w->ch[c].uv_per_div = round_u32(scope_cal_mv_per_count(ch, r) * SCOPE_CAL_COUNTS_PER_DIV * 1000.0f);
     }
     return ESP_WAVE_OK;
 }

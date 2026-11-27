@@ -584,6 +584,28 @@ parses the reply, but its waveform names are the old eight and are wrong for thi
 `sg.freq.actual` (key `0x46`, f32, read-only) is the frequency TMR7 really produces after
 quantisation, 0 while the output is off; EXP-79 found it exact against a Rigol's counter.
 
+Position and absolute volts (2026-11-27, for the CLI's web UI):
+
+- `chN.position` (`0x26` / `0x2E`, i16, writable) is MOVE -> Position's display offset, in LCD
+  rows up (26 per division), -130..130. A display setting, so it is accepted in any mode.
+- `chN.zero` (`0x27` / `0x2F`, f32, read-only) is where 0 V at the BNC lands, in record counts
+  (the `WAVEFORM_FRAME` sample scale), at the range and offset reference in force (EXP-89).
+  With it a host can state absolute volts: (count - zero) x `uv_per_div` / `counts_per_div` x
+  the probe factor. Absent before the offset reference is armed.
+- `trig.volts` (`0x50`, f32, read-only) is the hardware trigger level in volts at the source
+  channel's probe tip, the number the LCD's "Trig" popup shows (`scope_trigger_level_volts`,
+  EXP-89). Absent while the source's range has no gain or zero, where the popup shows the code.
+  `0x10..0x1F` is full, so `0x50` starts "scope, continued".
+
+Absent here means "no calibration to say it with", the same rule as the LCD: a host shows the
+code then, never a guessed volt.
+
+`chN.uv_per_div` and `WAVEFORM_FRAME.uv_per_div` are at the BNC again, as documented. Since
+043926b (probe 1X/10X scales the readouts) both came from `scope_cal_volts_per_div()`, which is
+probe-tip referred, so a host applying `chN.probe` (as the CLI does) showed a x10 probe's V/div
+and Vpp ten times too large. They now come from `scope_cal_mv_per_count()` x counts per
+division. `test_remote_proto`: 217 checks (the new keys' encoding, types and read-only refusals).
+
 ### 10.3 Tests
 
 `test_remote_proto.c` grew from 123 to 203 checks: TLV layout per type, unknown keys never on

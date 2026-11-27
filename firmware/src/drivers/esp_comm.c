@@ -784,7 +784,9 @@ static void handle_fw_update_commit(const esp_packet_t *pkt)
     { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_COUPLING),   ESP_VT_U8,  KEY_RW }, \
     { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_PROBE),      ESP_VT_U8,  KEY_RW }, \
     { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_UV_PER_DIV), ESP_VT_U32, KEY_RO }, \
-    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_VDIV_TIER),  ESP_VT_U8,  KEY_RO }
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_VDIV_TIER),  ESP_VT_U8,  KEY_RO }, \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_POSITION),   ESP_VT_I16, KEY_RW }, \
+    { (uint8_t)(0x20u + 8u * (ch) + ESP_KEY_CH_ZERO),       ESP_VT_F32, KEY_RO }
 
 static const struct { uint8_t key, type, rw; } key_table[] = {
     { ESP_KEY_MODE,           ESP_VT_U8,  KEY_RO },
@@ -823,6 +825,7 @@ static const struct { uint8_t key, type, rw; } key_table[] = {
     { ESP_KEY_SG_DUTY,        ESP_VT_U8,  KEY_RW },
     { ESP_KEY_SG_OUTPUT,      ESP_VT_U8,  KEY_RW },
     { ESP_KEY_SG_FREQ_ACTUAL, ESP_VT_F32, KEY_RO },
+    { ESP_KEY_TRIG_VOLTS,     ESP_VT_F32, KEY_RO },
 };
 
 uint8_t esp_comm_vtype_size(uint8_t type)
