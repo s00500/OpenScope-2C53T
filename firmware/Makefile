@@ -800,6 +800,17 @@ $(BUILD_DIR)/test_siggen: tests/test_siggen.c src/dsp/siggen_wave.c src/dsp/sigg
 test-siggen: $(BUILD_DIR)/test_siggen
 	$<
 
+# Continuity beep veto (continuity_veto.h, review of #102): a millisecond
+# simulation of probes, the SoC's PC3 tone and lagging meter frames, with the
+# gate as first posted and two half-fixes as negative controls. Its own .PHONY
+# line, so it does not touch the shared list below.
+$(BUILD_DIR)/test_continuity_veto: tests/test_continuity_veto.c src/drivers/continuity_veto.h | $(BUILD_DIR)
+	$(HOST_CC) -std=gnu11 -O2 -Wall -Wextra -Werror -Isrc/drivers $< -o $@
+
+.PHONY: test-continuity-veto
+test-continuity-veto: $(BUILD_DIR)/test_continuity_veto
+	$<
+
 .PHONY: test-autoset all clean disasm size renode soak-test soak-quick flash flash-dfu bootloader flash-bootloader flash-all guest guest-warmtest guest-usart-silent emu test-meter-data test-meter-auto test-meter-voltage-wave test-fpga-meter-plan test-stock-meter-literals test-meter test-scope-measure test-scope-cal test-scope-timebase test-scope-freq test-redraw-gate test-band-holes test-trig-menu test-move-mode test-display-trace test-scope-vmap test-fft-live test-trig-edge test-acq-gate test-mask-pf test-siggen test-fuse test-config-persist guest-persist guest-caldump guest-coldtrace-slow guest-coldtrace-la guest-debugclk guest-configA-gap guest-configA-csdummy guest-configA-gapless guest-bringup guest-bringup-bb guest-bringup-bb-slow guest-coldtrace-hwspi guest-bringup-bb-faithful fpga-alt-header guest-coldtrace-meter test-bode test-shmem-layout
 
 # Bode sweep maths (step frequency, gain/phase, -3 dB bandwidth) and
