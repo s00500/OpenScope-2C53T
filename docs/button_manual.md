@@ -1,8 +1,48 @@
 # OpenScope 2C53T - Button & Navigation Manual
 
-Physical buttons: **MENU**, **AUTO**, **SAVE**, **CH1**, **CH2**, **PRM**, **SELECT**, **UP**, **DOWN**, **LEFT**, **RIGHT**, **OK**, **MOVE**
+Physical buttons (15): **MENU**, **AUTO**, **SAVE**, **CH1**, **CH2**, **PRM**, **SELECT**, **TRIGGER**, **MOVE**, **UP**, **DOWN**, **LEFT**, **RIGHT**, **OK**, **POWER**
 
-Emulator keys: `M`=MENU, `A`=AUTO, `S`=SAVE, `1`=CH1, `2`=CH2, `P`=PRM, `Space`=SELECT, Arrows, `Enter`=OK
+Emulator keys (`emulator/lcd_viewer.c`): `M`=MENU, `A`=AUTO, `S`=SAVE (also saves a viewer screenshot), `1`=CH1, `2`=CH2, `P`=PRM, `Space`=SELECT, Arrows, `Enter`=OK. TRIGGER, MOVE and POWER have no key there.
+
+---
+
+## What changed on 2026-11-26
+
+Everything below is in the sections that follow; this is the list of the
+day's changes, with where to read about each.
+
+- **Calibrated axes.** Every V/div step has a measured value on both
+  channels, from 13 mV to about 13 V per division (EXP-83/84/89/92), and
+  13 time/div steps are measured (EXP-81; a step without one shows `--`).
+  Labels, measurements and cursors use them. See *Vertical scale*.
+- **True scale by default.** A trace is drawn at the V/div its label says,
+  with 0 V at the channel's "1"/"2" flag; Settings can switch back to
+  Autofit. A grounded probe is a flat line, not a comb. See *Vertical scale*.
+- **0 V flags and trigger level in volts** (EXP-89). CH2's 0 V now matches
+  CH1's at boot. See *On the screen*.
+- **CH1 / CH2 keys** select a channel, switch it off, switch it on (EXP-86).
+  Coupling and probe moved to Settings -> Oscilloscope.
+- **TRIGGER opens the trigger panel**: mode, edge, source channel (now sent
+  to the FPGA), mask (EXP-86). See *Trigger panel*.
+- **SELECT is the cursor key** (it was TRIGGER). See *Cursors*.
+- **MOVE modes own both axes**: Scale, Trigger, Position, Mask, Cursors, with
+  a tag in the top row; new vertical Position (EXP-87). Scale presses no
+  longer blank the screen (EXP-88). See *MOVE*.
+- **Channels can overlay**: Position moves a channel up to 5 divisions,
+  across the other one's half.
+- **AUTO is an autoset** (EXP-90). The mask key moved to the trigger panel's
+  Mask row; what a mask is, is explained under *Mask pass/fail*.
+- **AUTO trigger mode no longer freezes** when the edge filter drops every
+  record (EXP-90); why that happens with our own generator is in *Trigger
+  panel* (EXP-91).
+- **The measurement rows follow the active channel** (Freq, Vpp, Vrms, Duty,
+  Per), and the last slot shows the other channel's peak to peak (EXP-91).
+- **X-Y puts the offsets back** when you leave it, so 0 V is where it was in
+  the time view. See *X-Y view*.
+- **Debug Info** setting: the `SPI3:OK n` counter is hidden unless it is on.
+- **A clipped input no longer freezes the scope** (EXP-82).
+- **Charge screen**: power off on USB, or plug USB into a unit that is off,
+  and it shows the battery state until POWER is held (EXP-75). See *Power*.
 
 ---
 
@@ -66,9 +106,9 @@ channel can cross into the other half and overlay the other trace, as on a
 bench scope; only the readout rows at the bottom and the top of the screen
 stop it (a trace moved past them flattens there). The position is not saved
 across power cycles. The H cursors' dV is read on the active channel's scale
-(the one CH1/CH2 selected), wherever its trace sits. No arrow press blanks the screen; after a
-Scale change the measurements below the trace refresh from the first capture
-at the new setting (EXP-88).
+(the one CH1/CH2 selected), wherever its trace sits. No arrow press blanks
+the screen; after a Scale change the measurements below the trace refresh
+from the first capture at the new setting (EXP-88).
 
 **On the screen:**
 
@@ -113,6 +153,26 @@ converter's noise shows as a comb on a quiet input (up to 4x magnified). A
 range without a measured V/div would always autofit; since EXP-92 every
 range has one (range 0 is 13 mV per division, range 9 about 13 V). Saved.
 
+The V/div steps (1X probe; with 10X the labels read ten times these):
+
+```
+CH1  13mV  26mV  64mV  126mV  252mV  640mV  1.27V  2.52V  ~6.24V  ~12.93V
+CH2  13mV  25mV  63mV  125mV  249mV  636mV  1.26V  2.47V  ~6.61V  ~13.78V
+```
+
+`~` marks a provisional step: the generator's 3 V spans only 7-15 counts on
+the two largest, and the channels differ by 6 % there, so treat them as
+approximate. The other eight are measured: straight-line fits within 0.4 %,
+the two channels within 1.3 % of each other. Two things to expect on the
+most sensitive steps:
+
+- **Noise.** About 2 counts, under 1 mV, shows as a thin fuzz at 13 mV/div.
+- **Headroom with both channels on.** 0 V sits in the middle of the
+  channel's half, so only about 1.6 divisions fit above it (21 mV at
+  13 mV/div). A larger positive level flattens on the edge of the trace
+  area; Position, AUTO, or switching the other channel off brings it into
+  view.
+
 Until 2026-11-26 the stages split the axes: "Trig level" left LEFT/RIGHT on
 the timebase, "Position" left UP/DOWN on V/div, there was no vertical
 position, and cursors took all four arrows whenever they were on.
@@ -130,14 +190,33 @@ position, and cursors took all four arrows whenever they were on.
 
 Channel is the trigger source, written to the FPGA (reg 0x06, EXP-86): the
 hardware fires on that channel. A channel that is off cannot be the source
-("CH2 is off"). The edge is an MCU filter on the source channel's record
-(the FPGA fires on either edge, EXP-55). The panel and its changes draw
-without blanking the screen. Mode and edge are also in Settings ->
-Oscilloscope. In the FFT views TRIGGER still cycles the mode.
+("CH2 is off"). The panel and its changes draw without blanking the screen.
+Mode and edge are also in Settings -> Oscilloscope. In the FFT views TRIGGER
+still cycles the mode.
 
-| Button | Action |
-|--------|--------|
-| **OK** | Toggle Run / Stop (or, while a mask failure is held, resume testing) |
+**Modes.** *Auto* shows a capture even when nothing triggers (a flat line, a
+level outside the signal). *Normal* shows only triggered captures and holds
+the last one while it waits. *Single* takes one triggered capture and
+holds it; to arm it again, step the Mode row away from Single and back.
+
+**Edge.** The FPGA fires on either edge (EXP-55), so Rising / Falling is a
+filter in the MCU: a capture whose trigger point is on the other edge is
+dropped. One case to know about (EXP-91): with the scope's **own generator**
+at a round frequency (1 kHz, say), the FPGA tends to fire on the same edge
+every time, because both run from the same crystal. On a fast timebase,
+where a capture holds less than half a period, that can be the edge you did
+not ask for, every time:
+
+- in *Normal*, the screen waits and never updates; pick the other edge, or
+  move the generator a few Hz off the round value (997 Hz and 1013 Hz gave
+  both edges on my unit), or use a slower timebase (at the autoset's choice
+  for 1 kHz a capture holds 8 cycles and either edge works);
+- in *Auto*, the scope shows the dropped captures after a short wait
+  instead of freezing (fixed 2026-11-26, EXP-90), so the trace moves but
+  its trigger point may sit on the other edge.
+
+A signal from another instrument drifts against the scope's crystal and
+should give both edges (not tried yet).
 
 ### Autoset (AUTO, time view)
 
@@ -151,6 +230,9 @@ stay where it got to).
   signal fits the converter and about 85 % of the channel's space (its half
   of the screen with both on, 2.8 divisions; the whole trace area alone, 5.5).
   Its **Position** then puts the signal's middle on the middle of that space.
+  It searches every step from 13 mV/div up (since EXP-92; before, it started
+  at 64 mV/div): the generator's smallest sine, 0.1 V, alone on CH1, comes
+  out at 26 mV/div, 3.8 divisions tall.
 - **Time/div**: from the signal's frequency, the timebase showing about 3
   cycles. It counts cycles at 5 MS/s, 500 kS/s, 50 kS/s, 5 kS/s and 500 S/s,
   fastest first, so a fast signal is never counted aliased. A DC level keeps
@@ -159,13 +241,12 @@ stay where it got to).
   if both have one), the level goes to the middle of its signal, the mode to
   Auto. The edge is kept.
 - A channel with nothing on it (under 20 mV of swing and within 50 mV of
-  0 V) goes to range 5 with 0 V on its flag. With nothing on either: the popup
-  says `Autoset: no signal` and the timebase is kept.
+  0 V) goes to 640 mV/div (range 5) with 0 V on its flag. With nothing on
+  either: the popup says `Autoset: no signal` and the timebase is kept.
 
 It uses the calibrated V/div and 0 V (EXP-83/84/89), so it is only as good as
-those (all ten ranges are calibrated since EXP-92). In the FFT
-views AUTO still auto-configures the spectrum; in the meter it picks the
-function.
+those (all ten ranges are calibrated since EXP-92). In the FFT views AUTO
+still auto-configures the spectrum; in the meter it picks the function.
 
 ### Mask pass/fail (time view)
 
@@ -209,7 +290,7 @@ The arrows move the cursors only in MOVE's Cursors mode (the tag says so). In th
 
 | Button | Action |
 |--------|--------|
-| **PRM** | Cycle view: Time -> FFT -> Split -> Waterfall -> Time |
+| **PRM** | Cycle view: Time -> FFT -> Split -> Waterfall -> X-Y -> Time |
 | **SELECT** | Cycle FFT window function (in FFT/Split/Waterfall views) |
 | **UP/DOWN** | Adjust reference level (+/- 5dB, in FFT views) |
 | **LEFT/RIGHT** | Zoom in/out frequency range (in FFT views) |
@@ -217,11 +298,25 @@ The arrows move the cursors only in MOVE's Cursors mode (the tag says so). In th
 
 Note: Entering an FFT view claims the shared memory pool (88KB). Returning to time view releases it.
 
+### X-Y view
+
+The last view on PRM draws CH1 against CH2 (CH1 across, CH2 up) in a
+square, with a short phosphor trail: a Lissajous figure for two sines, a
+diagonal line for the same signal on both. It centres and scales itself:
+it moves each channel's offset reference until its trace sits in the middle
+of the square. It has no keys of its own (the arrows still change the FFT
+settings, which X-Y does not use).
+
+Leaving X-Y puts both offset references back where the time view had them
+(since 2026-11-26). Before, one visit to X-Y left them moved by 60-80 counts,
+so every channel's 0 V and its flag were off in the time view until a
+reboot.
+
 ### Run Control
 
 | Button | Action |
 |--------|--------|
-| **OK** | Toggle acquisition Run / Stop (shows popup) |
+| **OK** | Toggle acquisition Run / Stop (shows popup). While a mask failure is held: resume testing |
 
 ---
 
@@ -268,11 +363,11 @@ switches in the background (~1.5 s in the `-meter` image). In the plain
 
 ### 5 Views
 
-- **Big** — the reading in 70 px digits, unit underneath, one line of min/max (or the relative reference, or SHORT/OPEN). Readable across the bench.
-- **Graph** — compact reading, scrolling strip chart with an auto-scaled Y axis.
-- **Stats** — min/max/avg/peak-to-peak and a histogram of the readings.
-- **Limits** — pass/fail: a big PASS / FAIL box, the reading's position on a Low–High bar, pass and fail counts, and the last failing value. Entering it with a live reading sets Low/High to the reading ±5 %.
-- **Fuse** — fuse current tester: probe the two metal tips on top of a fuse
+- **Big**: the reading in 70 px digits, unit underneath, one line of min/max (or the relative reference, or SHORT/OPEN). Readable across the bench.
+- **Graph**: compact reading, scrolling strip chart with an auto-scaled Y axis.
+- **Stats**: min/max/avg/peak-to-peak and a histogram of the readings.
+- **Limits**: pass/fail: a big PASS / FAIL box, the reading's position on a Low-High bar, pass and fail counts, and the last failing value. Entering it with a live reading sets Low/High to the reading ±5 %.
+- **Fuse**: fuse current tester: probe the two metal tips on top of a fuse
   left in place, and it estimates the current from the voltage drop and the
   fuse's typical resistance (about ±10 %). Entering it switches to DC V.
   **Calibrate the leads first:** touch the probe tips together and press
@@ -280,14 +375,14 @@ switches in the background (~1.5 s in the `-meter` image). In the plain
   would otherwise show as a ~120 mA draw on a 10 A fuse. The value is kept
   until power-off. No verdict is shown until the reading has been steady for
   about a second ("unsteady: probes on?", or WAIT in Scan).
-  - **Detail**: a picture of the selected fuse, the current, a 0–150 mA bar
+  - **Detail**: a picture of the selected fuse, the current, a 0-150 mA bar
     with the 50 mA parasitic-draw mark, the drop and the fuse resistance.
   - **Table**: every rating of the type, largest at the top, with the current
     each would mean.
   - **Scan**: DRAW / NO DRAW against the threshold, for walking a fuse box
     with the engine off, plus the current if the fuse is 10/15/20/30 A
     (20/30/40/60 A for Maxi and J-Case).
-  - **Types**: "which fuse is this?" — the five types to scale, front and top,
+  - **Types**: "which fuse is this?": the five types to scale, front and top,
     and the common rating colours. The number on top of the fuse is what
     counts; colours vary.
 
@@ -295,28 +390,41 @@ switches in the background (~1.5 s in the `-meter` image). In the plain
 
 ## Signal Generator Mode
 
-### Waveform & Output
+The output is the GEN connector (stock's DAC path, 100 samples per cycle).
+The line at the bottom of the screen repeats the keys:
+`PRM:Freq UP/DN:Amp L/R:Duty SEL:Wave OK:On`.
 
 | Button | Action |
 |--------|--------|
-| **SELECT** | Cycle waveform type |
-| **OK** | Toggle output ON / OFF |
+| **SELECT** | Next waveform (list below) |
+| **OK** | Output on / off (`OUTPUT ON` / `OUTPUT OFF`) |
+| **UP / DOWN** | Amplitude +/- 0.1 V, 0 to 3.0 V |
+| **LEFT / RIGHT** | Duty -/+ 5 %, 0 to 100 %. Only Square (Duty) and Sawtooth (Symmetry; 50 % is a triangle) use it, and the row shows only for them |
+| **PRM** | Frequency presets: 1 -> 10 -> 100 -> 1k -> 10k -> 50k -> 1 Hz (50 kHz is stock's ceiling) |
 
-### Waveforms
+### Waveforms (13, stock's set)
 
 ```
-Sine -> Square -> Triangle -> Sawtooth -> Full-Rect Sine -> Half-Rect Sine -> Pulse -> Noise
+Sine -> Square -> Sawtooth -> Half Wave -> Full Wave -> Step -> Rev Step
+-> Exp Rise -> Exp Fall -> DC -> Multi-tone -> Sinc Pulse -> Lorentz -> Sine
 ```
 
-### Parameters
+**Amplitude** is peak to peak, and the output swings upward from 0 V: the
+DAC cannot go below it (sine 3.0 V = 0 to 3 V). On **DC** the amplitude is
+the level. The generator's own 0 V reads about +8 to +10 mV on the
+calibrated scope (EXP-89/92).
 
-| Button | Action |
-|--------|--------|
-| **UP** | Increase amplitude (+0.1 Vpp) |
-| **DOWN** | Decrease amplitude (-0.1 Vpp) |
-| **LEFT** | Decrease duty cycle (-5%) |
-| **RIGHT** | Increase duty cycle (+5%) |
-| **PRM** | Cycle frequency presets: 1 -> 10 -> 100 -> 1k -> 10k -> 25k -> 1 Hz |
+**Frequency.** The generator divides a fixed clock, so not every frequency
+comes out exactly. When the real one differs from the set one, the screen
+shows it after the set value (`Frequency 1000 Hz = <real>`, in Hz to
+1 mHz), and the status bar shows the real one. A Rigol counter agrees with
+it to the crystal's offset (EXP-79).
+
+Over USB, the shell's `siggen freq <Hz>` sets any frequency up to 50 kHz,
+and `siggen dccode <0-4095>` holds the output at one raw DAC code, 0.79 mV
+per step (EXP-80), until the next waveform, amplitude or duty change; it is
+how the 13 and 26 mV/div steps were calibrated (EXP-92). The remote key
+`sg.freq.actual` reports the real frequency.
 
 ---
 
@@ -346,6 +454,7 @@ Sine -> Square -> Triangle -> Sawtooth -> Full-Rect Sine -> Half-Rect Sine -> Pu
 | **UP** | Move selection up |
 | **DOWN** | Move selection down |
 | **OK** | Enter sub-menu or toggle selected option |
+| **LEFT / RIGHT** | Change the value (Oscilloscope sub-menu, Display Mode, Startup on Boot) |
 | **MENU** | Back to top-level (from sub-menu) or cycle to Oscilloscope mode |
 
 ### Display Mode (OK to cycle)
@@ -367,28 +476,34 @@ initialization. Selecting `Scope` keeps the normal oscilloscope startup path.
 ### Oscilloscope Settings Sub-menu (depth 1)
 
 ```
-> CH1 Coupling      [DC / AC / GND]
+> CH1 Coupling      [DC / AC]
   CH1 Probe         [1X / 10X]
-  CH1 20M Limit     [ON / OFF]
-  CH2 Coupling      [DC / AC / GND]
+  CH1 20M Limit     [n/a]
+  CH2 Coupling      [DC / AC]
   CH2 Probe         [1X / 10X]
-  CH2 20M Limit     [ON / OFF]
+  CH2 20M Limit     [n/a]
   Trigger Mode      [Auto / Normal / Single]
   Trigger Edge      [Rising / Falling]
   Vertical Scale    [V/div / Autofit]
   Debug Info        [Off / On]
 ```
 
-Press **OK** on any item to cycle its value. **MENU** to go back. The list
-scrolls: seven rows fit, so Trigger Edge and Debug Info come into view as the
-selection moves down (before 2026-11-26 Trigger Edge was never drawn).
+Press **OK** (or LEFT/RIGHT) on any item to change its value. **MENU** to go
+back. The list scrolls: seven rows fit, so Trigger Edge, Vertical Scale and
+Debug Info come into view as the selection moves down (before 2026-11-26
+Trigger Edge was never drawn).
 
+- **Coupling** switches the input relay between DC and AC (it was on the
+  CH1/CH2 keys until 2026-11-26). The label changes only when the relay
+  did. There is no GND position.
+- **20M Limit** shows `n/a`: no hardware path for a bandwidth limit is known
+  (EXP-70).
 - **Vertical Scale** (default V/div, saved): V/div draws each trace at its
   labelled volts per division with 0 V at its flag; Autofit fits each trace
   to its half (see "Vertical scale" above).
 
 - **Debug Info** (default Off, saved): shows developer readouts on the scope
-  screen. Today that is the `SPI3:OK n` chip in the top row: n counts the
+  screen. For now that is the `SPI3:OK n` chip in the top row: n counts the
   captures read from the FPGA that passed the checks, so a climbing number
   means acquisition is running (it stops in STOP and while NORMAL/SINGLE
   wait for a trigger). `SPI3:-- n [XX]` means reads timed out (XX = the
@@ -433,6 +548,40 @@ Shows device info, pool status, heap free, license. **MENU** or **OK** to go bac
 
 ---
 
+## Power
+
+| Key | Action |
+|-----|--------|
+| **POWER**, held 3 s | Power off. A `Hold to power off` box counts 3, 2, 1; letting go cancels. Then `Goodbye!`, the settings are saved, and the unit switches off |
+| **MENU** held, then **POWER** | Restart into the factory upgrade mode (the `IAP` USB drive, for flashing) |
+| **POWER** on the charge screen, held about 0.3 s | Turn on |
+
+**On battery**, power off is off. **On USB**, the board stays powered, so
+since 2026-11-26 (EXP-75) the unit shows a **charge screen** after
+`Goodbye!` instead of hanging there, as stock does: a battery outline, a
+status line and `Hold POWER to turn on`.
+
+- `Charging`: the segments fill one after another; `Charged`: all five lit;
+  `USB power`: the charger reports neither. (They come from the charger's
+  two status lines, read the way stock reads them; that decoding has not
+  been checked on my unit against a known charge state yet.)
+- Plugging USB into a unit that is off also lands on the charge screen; it
+  does not start the instrument by itself.
+- Unplugging USB on the charge screen switches the unit off for real.
+- After a power-off the POWER button must be let go once before a new hold
+  counts, so the hold that switched it off does not switch it straight back
+  on.
+
+The pinhole reset, a flash (IAP drive or `cdc_flash.py`) and a watchdog
+reset do not show the charge screen: they start the instrument directly,
+as before.
+
+The status bar's battery corner says `CHG` while USB charges the cell, and
+flashes `LOW` when it reads under 3.3 V on battery. Nothing switches the unit
+off automatically at that point (yet), so power it off and charge it.
+
+---
+
 ## Quick Reference Card
 
 ```
@@ -444,21 +593,28 @@ Shows device info, pool status, heap free, license. **MENU** or **OK** to go bac
 | CH2    | Select / off / on|        -         |        -         |        -         |
 | UP     | By MOVE mode *   |        -         | Amplitude up     | Selection up     |
 | DOWN   | By MOVE mode *   |        -         | Amplitude down   | Selection down   |
-| LEFT   | By MOVE mode *   | Prev function    | Duty cycle down  |        -         |
-| RIGHT  | By MOVE mode *   | Next function    | Duty cycle up    |        -         |
+| LEFT   | By MOVE mode *   | Prev function    | Duty down        | Change value **  |
+| RIGHT  | By MOVE mode *   | Next function    | Duty up          | Change value **  |
 | OK     | Run/Stop         | Hold             | Output on/off    | Enter / Toggle   |
-| PRM    | Cycle FFT views  | Softkey: View    | Freq presets     |        -         |
-| SELECT | Cursor mode      | Softkey (Reset)  | Cycle waveform   | Cycle comp type  |
+| PRM    | Next view (FFT,  | Softkey: View    | Freq presets     |        -         |
+|        |  Split, WF, X-Y) |                  |                  |                  |
+| SELECT | Cursor mode      | Softkey (Reset)  | Next waveform    | Cycle comp type  |
 | MOVE   | Arrow-key mode   | Softkey (Func.)  |        -         |        -         |
 | TRIGGER| Trigger panel    | Softkey (Rel.)   |        -         |        -         |
 | AUTO   | Autoset (FFT:    | Auto function    |        -         |        -         |
 |        |  auto-config)    |                  |                  |                  |
-| SAVE   | Screenshot       | Debug overlay    | Screenshot       | Screenshot       |
+| SAVE   | "not in this     | Debug overlay    | "not in this     | "not in this     |
+|        |  build" ***      |                  |  build"          |  build"          |
+| POWER  | Hold 3 s: off. MENU+POWER: upgrade mode. Charge screen: hold to turn on   |
 +--------+------------------+------------------+------------------+------------------+
 
-* Scope time view, by the MOVE mode shown in the top-row tag: Scale =
-V/div (UP/DOWN) and time/div (LEFT/RIGHT, LEFT = faster); Trigger = level and
-trigger point; Position = vertical position and trigger point; Mask =
-tolerances; Cursors = move / next cursor. Other scope views keep their own
-arrow meanings.
+*   Scope time view, by the MOVE mode shown in the top-row tag: Scale =
+    V/div (UP/DOWN) and time/div (LEFT/RIGHT, LEFT = faster); Trigger =
+    level and trigger point; Position = vertical position and trigger
+    point; Mask = tolerances; Cursors = move / next cursor. Other scope
+    views keep their own arrow meanings.
+**  Oscilloscope settings, theme (Display Mode) and Startup on Boot.
+*** There is no on-device screenshot store yet: SAVE says so rather than
+    pretend (until 2026-10-03 it said "SAVED #n" and wrote nothing).
+    Screenshots work over USB: scripts/screenshot.py.
 ```
