@@ -2,7 +2,7 @@
 
 Physical buttons (15): **MENU**, **AUTO**, **SAVE**, **CH1**, **CH2**, **PRM**, **SELECT**, **TRIGGER**, **MOVE**, **UP**, **DOWN**, **LEFT**, **RIGHT**, **OK**, **POWER**
 
-Emulator keys (`emulator/lcd_viewer.c`): `M`=MENU, `A`=AUTO, `S`=SAVE (also saves a viewer screenshot), `1`=CH1, `2`=CH2, `P`=PRM, `Space`=SELECT, Arrows, `Enter`=OK. TRIGGER, MOVE and POWER have no key there.
+Emulator (`emulator/run_emulator.sh`, see `emulator/README.md`): click the key panel under the LCD, or type `M`=MENU, `A`=AUTO, `S`=SAVE (also saves a viewer screenshot), `1`=CH1, `2`=CH2, `P`=PRM, `Space`=SELECT, `T`=TRIGGER, `V`=MOVE, Arrows, `Enter`=OK. POWER has no key there.
 
 ---
 
