@@ -14,6 +14,7 @@ that adds or changes a row.
 | `fix/scope-freq-hang` | worktree `../OpenScope-2C53T-freqfix` | topic branch off `origin/main` for PR #108 |
 | `fix/acq-railed-input` | worktree `../OpenScope-2C53T-acqgate` | topic branch off `origin/main` for the clipped-input fix (EXP-82), **PR #109** |
 | `feat/charge-screen` | worktree `.claude/worktrees/charge-screen` (main checkout) | topic branch off `origin/main` for the charge screen (EXP-75), **PR #107**; merged into this branch |
+| `fix/continuity-pc3-beep` | main checkout | the continuity beep from PC3 (EXP-93, numbered EXP-74 until 2026-11-27), **PR #102**; not merged into this branch. Review 2026-11-27: veto fixed 6bf6e95 (frames ignored for 1.2 s after the tone starts, then the latest frame decides; `test_continuity_veto`), renumbered and PB9 = TMR11_CH1 in 97ba29f; reply and description not posted yet |
 
 The Go host CLI is a separate repository (`../openscope-cli`), not part of
 this repo.

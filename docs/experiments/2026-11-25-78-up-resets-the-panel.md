@@ -89,7 +89,7 @@ values). Predicate host-tested with the bench values (`test_display_trace`).
 
 **A/B against the user's previous firmware.** The user reported it "did not
 happen previously". The reference was `fix/continuity-pc3-beep` @ 9d1d135
-(upstream main + EXP-74 continuity beep), built as `guest-coldtrace` (build
+(upstream main + the EXP-93 continuity beep, then numbered EXP-74), built as `guest-coldtrace` (build
 22:24:34, 650,984 B), flashed over CDC: **it goes white on a physical UP press
 too.** So none of this session's commits (M6, display trace, parkwake, vertical
 map, panel readback) causes it. Next reference: the v0.4.1 release image
