@@ -729,6 +729,9 @@ test-move-mode: $(BUILD_DIR)/test_move_mode
 $(BUILD_DIR)/test_power_boot: tests/test_power_boot.c src/drivers/power.c src/drivers/power.h | $(BUILD_DIR)
 	$(HOST_CC) -std=gnu11 -Wall -Wextra -Werror -DPOWER_HOST_TEST -Isrc/drivers $< src/drivers/power.c -o $@
 
+# Its own .PHONY line, like test-fw-loader's, so it does not touch the shared
+# list below.
+.PHONY: test-power-boot
 test-power-boot: $(BUILD_DIR)/test_power_boot
 	$<
 
